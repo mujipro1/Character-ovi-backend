@@ -146,12 +146,15 @@ def validate_and_process_user_prompt(text_prompt: str, image_path: str = None) -
         else:
             raise ValueError(f"Unsupported file type: {ext}. Only .csv and .tsv are allowed.")
 
-        assert "text_prompt" in df.keys() and "image_path" in df.keys(), f"Missing required columns in TSV file."
+        assert "text_prompt" in df.keys(), f"Missing required columns in TSV file."
         text_prompts = list(df["text_prompt"])
-        image_paths = list(df["image_path"])
-
-        assert all(os.path.isfile(p) for p in image_paths), "One or more image paths in the TSV file do not exist."
-    
+        if "image_path" in df.keys():
+            image_paths = list(df["image_path"])
+            assert all(os.path.isfile(p) for p in image_paths), "One or more image paths in the TSV file do not exist."
+        else:
+            print("Warning: image_path was not found, assuming t2v mode...")
+            image_paths = [None] * len(text_prompts)
+        
     else:
         assert image_path is None or os.path.isfile(image_path), f"Image path is not None but {image_path} does not exist."
         text_prompts = [text_prompt]
