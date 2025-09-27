@@ -1,8 +1,6 @@
-model:
-  checkpoint_path: /data/weiminwang/ckpts/MovieMachines/mp_rank_00_model_states_25000.pt
-  
-output_dir: /data/chetwinlow/engine_out_no_ens_test_simplified
-ckpt_dir: ./ckpts
+ckpt_dir: /data/weiminwang/ckpts/MovieMachines/
+
+output_dir: /home/weiminwang/open_source/MovieMachines/exp_outputs/testing_chetwin_version_25000_i2v
 num_steps: 50
 solver_name: unipc
 shift: 5.0
@@ -14,8 +12,8 @@ shard_fusion_model: False
 video_negative_prompt: "excessive head movement, unnatural motion, jitter, shaky camera, unstable video, deformed hands, extra fingers, fused fingers, missing fingers, six fingers, mutated hands, malformed hands, distorted hands, unnatural hand pose, bad anatomy, text captions, closed captions, low quality, blurry, pixelated, artifacts, distorted, noisy, poor resolution"
 audio_negative_prompt: "robotic, muffled, distorted, metallic, background noise, echo, clipping, low-quality microphone, mouth clicks"
 seed: 100
-aspect_ratio: "9:16" #["9:16", "16:9", "1:1"]
+video_frame_height_width: [992, 512] # only useful if t2v_only, recommended values: [512, 992], [992, 512], [960, 512], [512, 960], [720, 720], [448, 1120]
 # text_prompt: "A red-haired woman with fair skin, wearing a maroon cardigan over a tan top, smiles and looks towards someone off-screen to her left. She sits at a dark wooden table covered with numerous colorful puzzle pieces, and her hands are sorting through them. In the blurry foreground to the left, the back of a person's head and shoulder are visible. The background features light-colored louvered shutters. The woman continues to smile as she asks, <S>Was that Scott, your manager?<E> An unseen man responds, <S>Yeah.<E> As the woman maintains her smile, continuing to sort puzzle pieces, the man adds, <S>He just hired Mrs. Appletree to be his new secre-<E> The woman glances down at the puzzle pieces briefly before looking back up with a slight widening of her smile.. <AUDCAP>Soft chatter, clinking sounds of puzzle pieces, distinct male voice, distinct female voice.<ENDAUDCAP>"
 text_prompt: /home/chetwinlow/Ovi/converted_prompts.tsv
-t2v_only: True
+t2v_only: False
 slg_layer: 9

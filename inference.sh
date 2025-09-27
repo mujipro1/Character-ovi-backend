@@ -24,5 +24,5 @@ NCCL_TREE_THRESHOLD=0 \
     deepspeed \
     -H hostfile \
     inference.py \
-    --config configs/inference/inference_fusion.yaml \
+    --config ovi/configs/inference/inference_fusion.yaml \
     --deepspeed

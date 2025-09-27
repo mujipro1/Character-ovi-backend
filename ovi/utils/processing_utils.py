@@ -127,6 +127,12 @@ def calc_dims_from_area(
     return height, width
 
 
+def snap_hw_to_multiple_of_32(h: int, w: int) -> tuple[int, int]:
+    """Round H, W to the nearest multiples of 32 (min 32)."""
+    def _n32(x: int) -> int:
+        return max(32, int(round(x / 32)) * 32)
+    return _n32(int(h)), _n32(int(w))
+
 
 def validate_and_process_user_prompt(text_prompt: str, image_path: str = None) -> str:
     if not isinstance(text_prompt, str):

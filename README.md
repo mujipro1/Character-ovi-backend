@@ -1,4 +1,51 @@
-# Ovi
+<div align="center">
+<h1> OVI: Twin Backbone Cross-Modal Fusion for Audio-Video Generation </h1>
+
+<a href="#"><img src="https://img.shields.io/badge/arXiv%20paper-Coming%20Soon-b31b1b.svg"></a>
+<a href="https://aaxwaz.github.io/Ovi/"><img src="https://img.shields.io/badge/Project_page-More_visualizations-green"></a>
+<a href="#"><img src="https://img.shields.io/static/v1?label=%F0%9F%A4%97%20Hugging%20Face&message=Model&color=orange"></a>
+
+[Chetwin Low](https://scholar.google.com/)<sup> * 1 </sup>, [Weimin Wang](https://scholar.google.com/)<sup> * &dagger; 1 </sup>, [Calder Katyal](https://scholar.google.com/)<sup> 2 </sup><br>
+<sup> * </sup>Equal contribution, <sup> &dagger; </sup>Project lead<br>
+<sup> 1 </sup>Character AI, <sup> 2 </sup>Yale University
+
+</div>
+
+<p align="center">
+[Trailer video placeholder - coming soon]
+<p>
+
+---
+
+## 🌟 Key Features
+
+Ovi is a veo-3 like, **video+audio generation model** that simultaneously generates both video and audio content from text or text+image inputs.
+
+- **🎬 Video+Audio Generation**: Generate synchronized video and audio content simultaneously
+- **📝 Flexible Input**: Supports text-only or text+image conditioning
+- **⏱️ 5-second Videos**: Generates 5-second videos at 24 FPS
+- **📐 Multiple Aspect Ratios**: 720×720 total area with various aspect ratios (9:16, 16:9, 1:1)
+- **🏗️ Twin Backbone Architecture**:
+  - Video branch based on WAN 2.2 5B text-to-image-to-video model
+  - Symmetric audio branch of equivalent size (5B parameters)
+  - Cross-modal fusion model
+  - **Total: 11B parameters**
+
+---
+
+## 📋 Todo List
+
+- [x] Release research paper and microsite for demos
+- [x] Checkpoint of 11B model 
+- [x] Inference Codes
+  - [x] Text or Text+Image as input
+  - [x] Gradio application code
+  - [x] Multi-GPU inference with or without the support of sequence parallel
+- [x] A fun way of video creations, and example prompts. 
+- [ ] Longer video generation
+- [ ] Distilled model for faster inference
+- [ ] Training scripts
+
 ---
 
 ## 🚀 Features

@@ -2,6 +2,7 @@ import os
 import sys
 import uuid
 import cv2
+import glob
 import torch
 import logging
 from textwrap import indent
@@ -16,7 +17,7 @@ from ovi.utils.fm_solvers import (FlowDPMSolverMultistepScheduler,
                                get_sampling_sigmas, retrieve_timesteps)
 import traceback
 from omegaconf import OmegaConf
-from ovi.utils.processing_utils import calc_dims_from_area, preprocess_image_tensor
+from ovi.utils.processing_utils import calc_dims_from_area, preprocess_image_tensor, snap_hw_to_multiple_of_32
 
 DEFAULT_CONFIG = OmegaConf.load('ovi/configs/inference/default_fusion.yaml')
 
@@ -47,8 +48,18 @@ class OviFusionEngine:
         if config.get("shard_text_model", False):
             raise NotImplementedError("Sharding text model is not implemented yet.")
 
-        # Load checkpoint for fusion model
-        load_fusion_checkpoint(model, checkpoint_path=config.model.checkpoint_path, from_meta=meta_init)
+        # Find fusion ckpt in the same dir used by other components
+        ckpt_glob = os.path.join(config.ckpt_dir, "mp_rank_00_model_states*.safetensors")
+        ckpt_matches = sorted(glob.glob(ckpt_glob))
+
+        if not ckpt_matches:
+            raise RuntimeError(f"No fusion checkpoint found in {config.ckpt_dir} "
+                            f"(pattern: {ckpt_glob})")
+
+        checkpoint_path = ckpt_matches[0]
+
+        load_fusion_checkpoint(model, checkpoint_path=checkpoint_path, from_meta=meta_init)
+
         if meta_init:
             model = model.to(dtype=target_dtype).to(device=device).eval()
             model.set_rope_params()
@@ -64,7 +75,7 @@ class OviFusionEngine:
     def generate(self,
                     text_prompt, 
                     image_path=None,
-                    aspect_ratio="9:16",
+                    video_frame_height_width=None,
                     seed=100,
                     solver_name="unipc",
                     sample_steps=50,
@@ -79,7 +90,7 @@ class OviFusionEngine:
         params = {
             "Text Prompt": text_prompt,
             "Image Path": image_path if image_path else "None (T2V mode)",
-            "Aspect Ratio": aspect_ratio,
+            "Frame Height Width": video_frame_height_width,
             "Seed": seed,
             "Solver": solver_name,
             "Sample Steps": sample_steps,
@@ -132,12 +143,15 @@ class OviFusionEngine:
                 latents_images = latents_images.to(self.target_dtype)
                 video_latent_h, video_latent_w = latents_images.shape[2], latents_images.shape[3]
             else:
-                video_h, video_w = calc_dims_from_area(aspect_ratio)
+                assert video_frame_height_width is not None, f"In T2V mode, video_frame_height_width must be provided."
+                video_h, video_w = video_frame_height_width
+                video_h, video_w = snap_hw_to_multiple_of_32(video_h, video_w)
+                
                 video_latent_h, video_latent_w = video_h // 16, video_w // 16
                 print(f"T2V mode: calculated video latent size: {video_latent_h} x {video_latent_w}")
 
-            video_noise = torch.randn((1, self.video_latent_channel, self.video_latent_length, video_latent_h, video_latent_w), device=self.device, dtype=self.target_dtype, generator=torch.Generator(device=self.device).manual_seed(seed)).squeeze(0)  # c, f, h, w
-            audio_noise = torch.randn((1, self.audio_latent_length, self.audio_latent_channel), device=self.device, dtype=self.target_dtype, generator=torch.Generator(device=self.device).manual_seed(seed)).squeeze(0)  # 1, l c -> l, c
+            video_noise = torch.randn((self.video_latent_channel, self.video_latent_length, video_latent_h, video_latent_w), device=self.device, dtype=self.target_dtype, generator=torch.Generator(device=self.device).manual_seed(seed))  # c, f, h, w
+            audio_noise = torch.randn((self.audio_latent_length, self.audio_latent_channel), device=self.device, dtype=self.target_dtype, generator=torch.Generator(device=self.device).manual_seed(seed))  # 1, l c -> l, c
             
             # Calculate sequence lengths from actual latents
             max_seq_len_audio = audio_noise.shape[0]  # L dimension from latents_audios shape [1, L, D]

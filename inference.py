@@ -64,7 +64,7 @@ def main(config, args):
 
     logging.info("Loading OVI Fusion Engine...")
     ovi_engine = OviFusionEngine(config=config, device=device, target_dtype=target_dtype)
-    logging.info("OVI Fusion Engine loaded!!")
+    logging.info("OVI Fusion Engine loaded!")
 
     shard_text_model = config.get("shard_text_model", False)
     shard_fusion_model = config.get("shard_fusion_model", False)
@@ -118,7 +118,7 @@ def main(config, args):
         this_rank_eval_data = all_eval_data[start_idx:end_idx]
 
     for idx, (text_prompt, image_path) in tqdm(enumerate(this_rank_eval_data)):
-        aspect_ratio = config.get("aspect_ratio", "9:16")
+        video_frame_height_width = config.get("video_frame_height_width", None)
         seed = config.get("seed", 100)
         solver_name = config.get("solver_name", "unipc")
         sample_steps = config.get("sample_steps", 50)
@@ -130,7 +130,7 @@ def main(config, args):
         audio_negative_prompt = config.get("audio_negative_prompt", "")
         generated_video, generated_audio = ovi_engine.generate(text_prompt=text_prompt,
                                                                 image_path=image_path,
-                                                                aspect_ratio=aspect_ratio,
+                                                                video_frame_height_width=video_frame_height_width,
                                                                 seed=seed,
                                                                 solver_name=solver_name,
                                                                 sample_steps=sample_steps,
@@ -143,7 +143,7 @@ def main(config, args):
         
         if sp_rank == 0:
             formatted_prompt = format_prompt_for_filename(text_prompt)
-            output_path = os.path.join(output_dir, f"{formatted_prompt}_{aspect_ratio.replace(':', 'x')}_{seed}.mp4")
+            output_path = os.path.join(output_dir, f"{formatted_prompt}_{idx}_{seed}.mp4")
             save_video(output_path, generated_video, generated_audio, fps=24, sample_rate=16000)
     
 

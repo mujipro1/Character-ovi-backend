@@ -110,7 +110,6 @@ class FusionModel(nn.Module):
 
         
         if self.use_sp:
-            # print(f"[DEBUG SP] Doing all to all to shard head")
             q = all_to_all_4D(q, scatter_dim=2, gather_dim=1)
             k = torch.chunk(k, self.sp_size, dim=2)[self.sp_rank]
             v = torch.chunk(v, self.sp_size, dim=2)[self.sp_rank]
@@ -119,15 +118,10 @@ class FusionModel(nn.Module):
             if v_img is not None:
                 v_img = torch.chunk(v_img, self.sp_size, dim=2)[self.sp_rank]
             
-        # [B, L, H/P, C/H]
-        # k_img: [B, L, H, C/H]
-        # compute text attention
         x = flash_attention(q, k, v, k_lens=context_lens)
-        # x = x.flatten(2)
 
         if k_img is not None:
             img_x = flash_attention(q, k_img, v_img, k_lens=None)
-            # img_x = img_x.flatten(2)
             x = x + img_x
 
         is_vid = src_grid_sizes.shape[1] > 1
@@ -136,7 +130,6 @@ class FusionModel(nn.Module):
         k_target = cross_attn_block.norm_k_fusion(cross_attn_block.k_fusion(target_seq)).view(b, -1, n, d)
         v_target = cross_attn_block.v_fusion(target_seq).view(b, -1, n, d)
         if self.use_sp: 
-            # print(f"[DEBUG SP] Doing all to all to shard head")
             k_target = all_to_all_4D(k_target, scatter_dim=2, gather_dim=1) # [B, L, H/P, C/H]
             v_target = all_to_all_4D(v_target, scatter_dim=2, gather_dim=1) # [B, L, H/P, C/H]
         
@@ -147,14 +140,10 @@ class FusionModel(nn.Module):
         
         # Debug information        
         if cal_attention_weights and not self.use_sp:
-            print(f"[DEBUG ATTENTION] src_grid_sizes.shape={src_grid_sizes.shape}, target_grid_sizes.shape={target_grid_sizes.shape}")
-            print(f"[DEBUG ATTENTION] Collecting attention weights! q.shape={q.shape}, k_target.shape={k_target.shape}, v_target.shape={v_target.shape}")
-
             # Use attention with weights for visualization
             target_x, avg_attn_weights = attention_with_weights(q, k_target, v_target, k_lens=target_seq_lens, average_for_q=is_video_to_audio, total_video_latent_frames=31)
             # Store averaged attention weights for this block (much smaller memory footprint)
             self.attention_weights.append(avg_attn_weights.detach().cpu())
-            print(f"[DEBUG ATTENTION] Stored averaged attention weights with shape {avg_attn_weights.shape}, total collected: {len(self.attention_weights)}")
         else:
             # Use regular flash attention
             target_x = flash_attention(q, k_target, v_target, k_lens=target_seq_lens)
