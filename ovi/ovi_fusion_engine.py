@@ -17,7 +17,7 @@ from ovi.utils.fm_solvers import (FlowDPMSolverMultistepScheduler,
                                get_sampling_sigmas, retrieve_timesteps)
 import traceback
 from omegaconf import OmegaConf
-from ovi.utils.processing_utils import calc_dims_from_area, preprocess_image_tensor, snap_hw_to_multiple_of_32
+from ovi.utils.processing_utils import preprocess_image_tensor, snap_hw_to_multiple_of_32
 
 DEFAULT_CONFIG = OmegaConf.load('ovi/configs/inference/default_fusion.yaml')
 

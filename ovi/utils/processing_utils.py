@@ -134,7 +134,7 @@ def snap_hw_to_multiple_of_32(h: int, w: int) -> tuple[int, int]:
     return _n32(int(h)), _n32(int(w))
 
 
-def validate_and_process_user_prompt(text_prompt: str, image_path: str = None, t2v_only: bool = False) -> str:
+def validate_and_process_user_prompt(text_prompt: str, image_path: str = None) -> str:
     if not isinstance(text_prompt, str):
         raise ValueError("User input must be a string")
 
@@ -156,8 +156,7 @@ def validate_and_process_user_prompt(text_prompt: str, image_path: str = None, t
         text_prompts = list(df["text_prompt"])
         if "image_path" in df.keys():
             image_paths = list(df["image_path"])
-            if not t2v_only:
-                assert all(os.path.isfile(p) for p in image_paths), "One or more image paths in the TSV file do not exist."
+            assert all(os.path.isfile(p) for p in image_paths), "One or more image paths in the TSV file do not exist."
         else:
             print("Warning: image_path was not found, assuming t2v mode...")
             image_paths = [None] * len(text_prompts)

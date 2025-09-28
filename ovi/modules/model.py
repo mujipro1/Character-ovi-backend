@@ -448,7 +448,6 @@ class WanAttentionBlock(nn.Module):
         assert e.dtype == torch.bfloat16
         assert len(e.shape) == 4 and e.size(2) == 6 and e.shape[1] == x.shape[1], f"{e.shape}, {x.shape}"
         with torch.amp.autocast('cuda', dtype=torch.bfloat16):
-            #e = (self.modulation.unsqueeze(0) + e).chunk(6, dim=2)
             e = self.modulation(e).chunk(6, dim=2)
         assert e[0].dtype == torch.bfloat16
 

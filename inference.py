@@ -57,7 +57,8 @@ def main(config, args):
 
     # validate inputs before loading model to not waste time if input is not valid
     text_prompt = config.get("text_prompt")
-    text_prompts, image_paths = validate_and_process_user_prompt(text_prompt, None, t2v_only=config.get("t2v_only", False))
+    image_path = config.get("image_path", None)
+    text_prompts, image_paths = validate_and_process_user_prompt(text_prompt, image_path)
     if config.get("t2v_only", False):
         image_paths = [None] * len(text_prompts)
 
@@ -87,24 +88,21 @@ def main(config, args):
 
     # Data distribution - by SP groups
     total_files = len(all_eval_data)
+
+    require_sample_padding = False
     
     if total_files == 0:
         logging.error(f"ERROR: No evaluation files found")
         this_rank_eval_data = []
-        start_idx = 0
     else:
         # Pad to match number of SP groups
         remainder = total_files % num_sp_groups
-        if remainder != 0:
+        if require_sample_padding and remainder != 0:
             pad_count = num_sp_groups - remainder
-            #logging.info(f"Padding eval data with {pad_count} duplicates to match {num_sp_groups} SP groups.")
             all_eval_data += [all_eval_data[0]] * pad_count
         
         # Distribute across SP groups
-        files_per_group = len(all_eval_data) // num_sp_groups
-        start_idx = sp_group_id * files_per_group
-        end_idx = start_idx + files_per_group
-        this_rank_eval_data = all_eval_data[start_idx:end_idx]
+        this_rank_eval_data = all_eval_data[sp_group_id :: num_sp_groups]
 
     for idx, (text_prompt, image_path) in tqdm(enumerate(this_rank_eval_data)):
         video_frame_height_width = config.get("video_frame_height_width", None)
@@ -132,7 +130,7 @@ def main(config, args):
         
         if sp_rank == 0:
             formatted_prompt = format_prompt_for_filename(text_prompt)
-            output_path = os.path.join(output_dir, f"{formatted_prompt}_{idx}_{seed}.mp4")
+            output_path = os.path.join(output_dir, f"{formatted_prompt}_{'x'.join(map(str, video_frame_height_width))}_{seed}.mp4")
             save_video(output_path, generated_video, generated_audio, fps=24, sample_rate=16000)
     
 

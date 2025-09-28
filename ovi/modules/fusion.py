@@ -2,18 +2,12 @@
 import torch
 import torch.nn as nn
 from ovi.modules.model import WanLayerNorm, WanModel, WanRMSNorm, gradient_checkpointing, rope_apply
-from ovi.modules.attention import flash_attention, attention_with_weights
+from ovi.modules.attention import flash_attention
 from ovi.distributed_comms.communications import all_gather, all_to_all_4D
 from ovi.distributed_comms.parallel_states import nccl_info, get_sequence_parallel_state
 
 class FusionModel(nn.Module):
-    def __init__(self, video_config=None, audio_config=None, audio_fusion_mode="trailing", gradient_checkpointing=False):
-        """
-        audio_fusion_mode: ["trailing", "leading", "sum]
-        trailing fusion means it does fusion at [3, 7, 11, ..., 39]
-        leading fusion means it does fusion at [0, 4, 8, ..., 36]
-        sum fusion means it does fusion and sums the results for each group of v_2_a_ratio video blocks.
-        """
+    def __init__(self, video_config=None, audio_config=None):
         super().__init__()
         has_video = True 
         has_audio = True
@@ -32,14 +26,8 @@ class FusionModel(nn.Module):
             print("Warning: No audio model is provided!")
 
         if has_video and has_audio:
-            assert len(self.video_model.blocks) % len(self.audio_model.blocks) == 0, f"Fusion is only possible if the number of video blocks is a multiple of the number of audio blocks, got {len(self.video_model.blocks)} video blocks and {len(self.audio_model.blocks)} audio blocks."
-
-            self.v_2_a_ratio = len(self.video_model.blocks) // len(self.audio_model.blocks)
+            assert len(self.video_model.blocks) == len(self.audio_model.blocks)
             self.num_blocks = len(self.video_model.blocks)
-            self.num_fusion_blocks = len(self.audio_model.blocks)
-
-            assert audio_fusion_mode  == "trailing"
-            self.audio_fusion_mode = audio_fusion_mode
 
             self.use_sp = get_sequence_parallel_state()
             if self.use_sp:
@@ -47,12 +35,7 @@ class FusionModel(nn.Module):
                 self.sp_rank = nccl_info.rank_within_group
             self.inject_cross_attention_kv_projections()
 
-        self.set_gradient_checkpointing(enable=gradient_checkpointing)
-
         self.init_weights()
-
-    def set_gradient_checkpointing(self, enable: bool):
-        self.gradient_checkpointing = enable
         
     def inject_cross_attention_kv_projections(self):
         for vid_block in self.video_model.blocks:
@@ -96,8 +79,7 @@ class FusionModel(nn.Module):
                                             target_grid_sizes,
                                             target_freqs,
                                             context,
-                                            context_lens, 
-                                            cal_attention_weights=False
+                                            context_lens
                                             ):
         b, n, d = src_seq.size(0), cross_attn_block.num_heads, cross_attn_block.head_dim
         if hasattr(cross_attn_block, "k_img"):
@@ -135,18 +117,8 @@ class FusionModel(nn.Module):
         
         q = rope_apply(q, src_grid_sizes, src_freqs)
         k_target = rope_apply(k_target, target_grid_sizes, target_freqs)
-
-        is_video_to_audio = (src_grid_sizes.shape[1] > 1 and target_grid_sizes.shape[1] == 1)
         
-        # Debug information        
-        if cal_attention_weights and not self.use_sp:
-            # Use attention with weights for visualization
-            target_x, avg_attn_weights = attention_with_weights(q, k_target, v_target, k_lens=target_seq_lens, average_for_q=is_video_to_audio, total_video_latent_frames=31)
-            # Store averaged attention weights for this block (much smaller memory footprint)
-            self.attention_weights.append(avg_attn_weights.detach().cpu())
-        else:
-            # Use regular flash attention
-            target_x = flash_attention(q, k_target, v_target, k_lens=target_seq_lens)
+        target_x = flash_attention(q, k_target, v_target, k_lens=target_seq_lens)
         
         x = x + target_x
         if self.use_sp:
@@ -168,8 +140,7 @@ class FusionModel(nn.Module):
                                             target_freqs,
                                             context,
                                             context_lens,
-                                            src_e, 
-                                            cal_attention_weights=False):
+                                            src_e):
         
         src_seq = src_seq + self.single_fusion_cross_attention_forward(attn_block.cross_attn,
                                                                        attn_block.norm3(src_seq),
@@ -180,8 +151,7 @@ class FusionModel(nn.Module):
                                                                        target_grid_sizes=target_grid_sizes,
                                                                        target_freqs=target_freqs,
                                                                        context=context,
-                                                                       context_lens=context_lens, 
-                                                                       cal_attention_weights=cal_attention_weights
+                                                                       context_lens=context_lens
                                                                        )
         y = attn_block.ffn(attn_block.norm2(src_seq).bfloat16() * (1 + src_e[4].squeeze(2)) + src_e[3].squeeze(2))
         with torch.amp.autocast('cuda', dtype=torch.bfloat16):
@@ -189,7 +159,7 @@ class FusionModel(nn.Module):
         return src_seq
         
     def single_fusion_block_forward(self,
-                                    vid_blocks,
+                                    vid_block,
                                     audio_block,
                                     vid,
                                     audio,
@@ -204,15 +174,12 @@ class FusionModel(nn.Module):
                                     audio_grid_sizes,
                                     audio_freqs,
                                     audio_context,
-                                    audio_context_lens,
-                                    cal_attention_weights=False,
-                                    cal_attention_weights_a2v=True
+                                    audio_context_lens
                                     ):
-        ## audio block only does once
+        ## audio modulation
         assert audio_e.dtype == torch.bfloat16
         assert len(audio_e.shape) == 4 and audio_e.size(2) == 6 and audio_e.shape[1] == audio.shape[1], f"{audio_e.shape}, {audio.shape}"
         with torch.amp.autocast('cuda', dtype=torch.bfloat16):
-            # audio_e = (audio_block.modulation.unsqueeze(0) + audio_e).chunk(6, dim=2)
             audio_e = audio_block.modulation(audio_e).chunk(6, dim=2)
         assert audio_e[0].dtype == torch.bfloat16
 
@@ -223,57 +190,52 @@ class FusionModel(nn.Module):
         with torch.amp.autocast('cuda', dtype=torch.bfloat16):
             audio = audio + audio_y * audio_e[2].squeeze(2)
 
-        audio_fusion_idx = None
-        if self.audio_fusion_mode == "leading":        
-            audio_fusion_idx = 0
-        elif self.audio_fusion_mode == "trailing":
-            audio_fusion_idx = self.v_2_a_ratio - 1
+        ## video modulation
+        assert len(vid_e.shape) == 4 and vid_e.size(2) == 6 and vid_e.shape[1] == vid.shape[1], f"{vid_e.shape}, {vid.shape}"
+        with torch.amp.autocast('cuda', dtype=torch.bfloat16):
+            vid_e = vid_block.modulation(vid_e).chunk(6, dim=2)
 
-        for block_idx, vid_block in enumerate(vid_blocks):
-            assert len(vid_e.shape) == 4 and vid_e.size(2) == 6 and vid_e.shape[1] == vid.shape[1], f"{vid_e.shape}, {vid.shape}"
-            with torch.amp.autocast('cuda', dtype=torch.bfloat16):
-                #single_vid_e = (vid_block.modulation.unsqueeze(0) + vid_e).chunk(6, dim=2)
-                single_vid_e = vid_block.modulation(vid_e).chunk(6, dim=2)
+        # video self-attention
+        vid_y = vid_block.self_attn(
+            vid_block.norm1(vid).bfloat16() * (1 + vid_e[1].squeeze(2)) + vid_e[0].squeeze(2), vid_seq_lens, vid_grid_sizes,
+            vid_freqs)
 
-            # video self-attention
-            vid_y = vid_block.self_attn(
-                vid_block.norm1(vid).bfloat16() * (1 + single_vid_e[1].squeeze(2)) + single_vid_e[0].squeeze(2), vid_seq_lens, vid_grid_sizes,
-                vid_freqs)
-        
-            with torch.amp.autocast('cuda', dtype=torch.bfloat16):
-                vid = vid + vid_y * single_vid_e[2].squeeze(2)
+        with torch.amp.autocast('cuda', dtype=torch.bfloat16):
+            vid = vid + vid_y * vid_e[2].squeeze(2)
 
-            # video cross-attention
-            og_audio = audio
-            if block_idx == audio_fusion_idx:
-                audio = self.single_fusion_cross_attention_ffn_forward(
-                    audio_block,
-                    audio,
-                    audio_grid_sizes,
-                    audio_freqs,
-                    vid,
-                    vid_seq_lens,
-                    vid_grid_sizes,
-                    vid_freqs,
-                    audio_context,
-                    audio_context_lens,
-                    audio_e, 
-                    cal_attention_weights=cal_attention_weights if cal_attention_weights_a2v else False
-                )
-            vid = self.single_fusion_cross_attention_ffn_forward(
-                vid_block,
-                vid,
-                vid_grid_sizes,
-                vid_freqs,
-                og_audio,
-                audio_seq_lens,
-                audio_grid_sizes,
-                audio_freqs,
-                vid_context,
-                vid_context_lens,
-                single_vid_e,
-                cal_attention_weights=cal_attention_weights if not cal_attention_weights_a2v else False
-            )
+        og_audio = audio
+
+        # audio cross-attention
+        audio = self.single_fusion_cross_attention_ffn_forward(
+            audio_block,
+            audio,
+            audio_grid_sizes,
+            audio_freqs,
+            vid,
+            vid_seq_lens,
+            vid_grid_sizes,
+            vid_freqs,
+            audio_context,
+            audio_context_lens,
+            audio_e
+        )
+
+        assert not torch.equal(og_audio, audio), "Audio should be changed after cross-attention!"
+
+        # video cross-attention
+        vid = self.single_fusion_cross_attention_ffn_forward(
+            vid_block,
+            vid,
+            vid_grid_sizes,
+            vid_freqs,
+            og_audio,
+            audio_seq_lens,
+            audio_grid_sizes,
+            audio_freqs,
+            vid_context,
+            vid_context_lens,
+            vid_e
+        )
 
         return vid, audio
 
@@ -290,8 +252,6 @@ class FusionModel(nn.Module):
         clip_fea_audio=None,
         y=None,
         first_frame_is_clean=False,
-        cal_attention_weights=False,
-        cal_attention_weights_a2v=True,
         slg_layer=False
     ):  
 
@@ -323,23 +283,21 @@ class FusionModel(nn.Module):
 
         kwargs = self.merge_kwargs(vid_kwargs, audio_kwargs)
 
-        for i in range(self.num_fusion_blocks):
+        for i in range(self.num_blocks):
             """
-            1 fusion block refers to 1 audio block with v_2_a_ratio video blocks. This is because audio block will be reused and we want to avoid recomputations...
+            1 fusion block refers to 1 audio block with 1 video block.
             """
-            vid_blocks = self.video_model.blocks[i * self.v_2_a_ratio : (i + 1) * self.v_2_a_ratio]
-            audio_block = self.audio_model.blocks[i]
             if slg_layer > 0 and i == slg_layer:
                 continue
+            vid_block = self.video_model.blocks[i]
+            audio_block = self.audio_model.blocks[i]
             vid, audio = gradient_checkpointing(
                     enabled=(self.training and self.gradient_checkpointing),
                     module=self.single_fusion_block_forward,
-                    vid_blocks=vid_blocks,
+                    vid_block=vid_block,
                     audio_block=audio_block,
                     vid=vid,
                     audio=audio,
-                    cal_attention_weights=cal_attention_weights,
-                    cal_attention_weights_a2v=cal_attention_weights_a2v,
                     **kwargs
                 )
 
@@ -347,50 +305,6 @@ class FusionModel(nn.Module):
         audio = self.audio_model.post_transformer_block_out(audio, audio_kwargs['grid_sizes'], audio_e)
 
         return vid, audio
-
-    def freeze_video_params(self):
-        """
-        we only need to train audio params and fusion params
-        """
-        num_audio_trainable = 0
-        num_total = 0
-        for n, p in self.named_parameters():
-            if "fusion" in n or "audio" in n:
-                p.requires_grad = True
-                num_audio_trainable += p.numel()
-            else:
-                p.requires_grad = False
-            num_total += p.numel()
-        
-        print(f"Training fusion parameters only! {num_audio_trainable} / {num_total} requires grad")
-
-    def freeze_all_audio_and_non_fusion_video_params(self):
-        num_audio_trainable = 0
-        num_total = 0
-        for n, p in self.named_parameters():
-            if "fusion" in n and "video" in n:
-                p.requires_grad = True
-                num_audio_trainable += p.numel()
-            else:
-                p.requires_grad = False
-            num_total += p.numel()
-        
-        print(f"Training fusion parameters only! {num_audio_trainable} / {num_total} requires grad")
-
-    def freeze_non_fusion_and_sa_params(self, train_text_layers=False):
-        num_audio_trainable = 0
-        num_total = 0
-        for n, p in self.named_parameters():
-            if "fusion" in n or "self_attn" in n or (train_text_layers and ("cross_attn" in n or "text_embedding" in n)):
-                p.requires_grad = True
-                num_audio_trainable += p.numel()
-            else:
-                p.requires_grad = False
-            num_total += p.numel()
-        
-        print(f"Training fusion and SA parameters only ({train_text_layers=})! {num_audio_trainable} / {num_total} requires grad")
-
-
 
     def init_weights(self):
         if self.audio_model is not None:
