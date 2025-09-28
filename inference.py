@@ -57,24 +57,13 @@ def main(config, args):
 
     # validate inputs before loading model to not waste time if input is not valid
     text_prompt = config.get("text_prompt")
-    image_path = config.get("image_path", None)
-    text_prompts, image_paths = validate_and_process_user_prompt(text_prompt, image_path)
+    text_prompts, image_paths = validate_and_process_user_prompt(text_prompt, None, t2v_only=config.get("t2v_only", False))
     if config.get("t2v_only", False):
         image_paths = [None] * len(text_prompts)
 
     logging.info("Loading OVI Fusion Engine...")
     ovi_engine = OviFusionEngine(config=config, device=device, target_dtype=target_dtype)
     logging.info("OVI Fusion Engine loaded!")
-
-    shard_text_model = config.get("shard_text_model", False)
-    shard_fusion_model = config.get("shard_fusion_model", False)
-
-    #TODO: add sharding...
-    if shard_text_model or shard_fusion_model:
-        raise NotImplementedError("Sharding for text and fusion model is not implemented yet.")
-
-    require_sample_padding = shard_text_model or shard_fusion_model
-
     
     output_dir = config.get("output_dir", "./outputs")
     os.makedirs(output_dir, exist_ok=True)
@@ -106,9 +95,9 @@ def main(config, args):
     else:
         # Pad to match number of SP groups
         remainder = total_files % num_sp_groups
-        if remainder != 0 and require_sample_padding:
+        if remainder != 0:
             pad_count = num_sp_groups - remainder
-            logging.info(f"Padding eval data with {pad_count} duplicates to match {num_sp_groups} SP groups.")
+            #logging.info(f"Padding eval data with {pad_count} duplicates to match {num_sp_groups} SP groups.")
             all_eval_data += [all_eval_data[0]] * pad_count
         
         # Distribute across SP groups
