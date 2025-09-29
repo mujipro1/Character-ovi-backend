@@ -5,7 +5,7 @@
 <a href="https://aaxwaz.github.io/Ovi/"><img src="https://img.shields.io/badge/Project_page-More_visualizations-green"></a>
 <a href="#"><img src="https://img.shields.io/static/v1?label=%F0%9F%A4%97%20Hugging%20Face&message=Model&color=orange"></a>
 
-[Chetwin Low](https://scholar.google.com/)<sup> * 1 </sup>, [Weimin Wang](https://scholar.google.com/)<sup> * &dagger; 1 </sup>, [Calder Katyal](https://scholar.google.com/)<sup> 2 </sup><br>
+[Chetwin Low](https://www.linkedin.com/in/chetwin-low-061975193/)<sup> * 1 </sup>, [Weimin Wang](https://www.linkedin.com/in/weimin-wang-will/)<sup> * &dagger; 1 </sup>, [Calder Katyal](https://www.linkedin.com/in/calder-katyal-a8a9b3225/)<sup> 2 </sup><br>
 <sup> * </sup>Equal contribution, <sup> &dagger; </sup>Project Lead<br>
 <sup> 1 </sup>Character AI, <sup> 2 </sup>Yale University
 
@@ -31,7 +31,7 @@ Ovi is a veo-3 like, **video+audio generation model** that simultaneously genera
 ## 📋 Todo List
 
 - [x] Release research paper and [microsite for demos](https://aaxwaz.github.io/Ovi)
-- [x] Checkpoint of 10B model
+- [x] Checkpoint of 11B model
 - [x] Inference Codes
   - [x] Text or Text+Image as input
   - [x] Gradio application code
@@ -108,7 +108,7 @@ python3 download_weights.py --output-dir custom_dir
 
 ## 🚀 Run Examples
 
-#### Configure Ovi
+### ⚙️ Configure Ovi
 
 Ovi's behavior and output can be customized by modifying [ovi/configs/inference/inference_fusion.yaml](ovi/configs/inference/inference_fusion.yaml) configuration file.
 The following parameters control generation quality, video resolution, and how text, image, and audio inputs are balanced:
@@ -166,5 +166,5 @@ torchrun --nnodes 1 --nproc_per_node 8 inference.py --config-file ovi/configs/in
 We would like to thank the following projects for their contributions to Ovi:
 
 - **[Wan2.2](https://github.com/Wan-Video/Wan2.2)**: Our video branch is initialized from the Wan2.2 repository
-- **[MMAudio](https://github.com/hkchengrex/MMAudio)**: Our audio encoder and decoder components are borrowed from the MMAudio project
+- **[MMAudio](https://github.com/hkchengrex/MMAudio)**: Our audio encoder and decoder components are borrowed from the MMAudio project. Some ideas are also inspired by them. 
 
