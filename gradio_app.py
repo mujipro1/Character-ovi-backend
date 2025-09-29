@@ -12,7 +12,8 @@ print("loaded model")
 def generate_video(
     text_prompt,
     image,
-    aspect_ratio,
+    video_frame_height,
+    video_frame_width,
     seed,
     solver_name,
     sample_steps,
@@ -32,7 +33,7 @@ def generate_video(
         generated_video, generated_audio = ovi_engine.generate(
             text_prompt=text_prompt,
             image_path=image_path,
-            aspect_ratio=aspect_ratio,
+            video_frame_height_width=[video_frame_height, video_frame_width],
             seed=seed,
             solver_name=solver_name,
             sample_steps=sample_steps,
@@ -64,10 +65,10 @@ with gr.Blocks() as demo:
             text_prompt = gr.Textbox(label="Text Prompt", placeholder="Describe your video...")
             image = gr.Image(type="filepath", label="First Frame Image (optional)")
 
-            aspect_ratio = gr.Dropdown(
-                choices=["9:16", "16:9", "1:1"], value="9:16", label="Aspect Ratio (H:W)"
-            )
-            seed = gr.Slider(minimum=0, maximum=1000000, value=100, step=1, label="Seed")
+            video_height = gr.Number(minimum=128, maximum=1280, value=512, step=32, label="Video Height")
+            video_width = gr.Number(minimum=128, maximum=1280, value=992, step=32, label="Video Width")
+
+            seed = gr.Number(minimum=0, maximum=100000, value=100, label="Seed")
             solver_name = gr.Dropdown(
                 choices=["unipc", "euler", "dpm++"], value="unipc", label="Solver Name"
             )
@@ -93,7 +94,7 @@ with gr.Blocks() as demo:
     run_btn.click(
         fn=generate_video,
         inputs=[
-            text_prompt, image, aspect_ratio, seed, solver_name,
+            text_prompt, image, video_height, video_width, seed, solver_name,
             sample_steps, shift, video_guidance_scale, audio_guidance_scale,
             slg_layer, video_negative_prompt, audio_negative_prompt,
         ],
