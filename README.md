@@ -11,12 +11,11 @@
 
 </div>
 
-<p align="center">
+## Video Demo
 
-[ovi_trailer.webm](assets/ovi_trailer.mp4)
-
-*Ovi Demo Video - Text and Image to Audio-Video Generation*
-</p>
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/d57f1e4a-21e5-403a-b869-4e3a52b95ef0" width="70%" poster=""> </video>
+</div>
 
 ---
 
