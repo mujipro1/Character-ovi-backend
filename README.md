@@ -6,14 +6,16 @@
 <a href="#"><img src="https://img.shields.io/static/v1?label=%F0%9F%A4%97%20Hugging%20Face&message=Model&color=orange"></a>
 
 [Chetwin Low](https://scholar.google.com/)<sup> * 1 </sup>, [Weimin Wang](https://scholar.google.com/)<sup> * &dagger; 1 </sup>, [Calder Katyal](https://scholar.google.com/)<sup> 2 </sup><br>
-<sup> * </sup>Equal contribution, <sup> &dagger; </sup>Project lead<br>
+<sup> * </sup>Equal contribution, <sup> &dagger; </sup>Project Lead<br>
 <sup> 1 </sup>Character AI, <sup> 2 </sup>Yale University
 
 </div>
 
 <p align="center">
-[Trailer video placeholder - coming soon]
-<p>
+<video src="assets/ovi_trailer.mp4" controls width="720">
+  Your browser does not support the video tag.
+</video>
+</p>
 
 ---
 
