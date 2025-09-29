@@ -104,7 +104,7 @@ def main(config, args):
         # Distribute across SP groups
         this_rank_eval_data = all_eval_data[sp_group_id :: num_sp_groups]
 
-    for idx, (text_prompt, image_path) in tqdm(enumerate(this_rank_eval_data)):
+    for _, (text_prompt, image_path) in tqdm(enumerate(this_rank_eval_data)):
         video_frame_height_width = config.get("video_frame_height_width", None)
         seed = config.get("seed", 100)
         solver_name = config.get("solver_name", "unipc")
