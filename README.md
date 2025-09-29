@@ -23,16 +23,9 @@ Ovi is a veo-3 like, **video+audio generation model** that simultaneously genera
 
 - **🎬 Video+Audio Generation**: Generate synchronized video and audio content simultaneously
 - **📝 Flexible Input**: Supports text-only or text+image conditioning
-- **⏱️ 5-second Videos**: Generates 5-second videos at 24 FPS
-- **📐 Multiple Aspect Ratios**: 720×720 total area with various aspect ratios (9:16, 16:9, 1:1)
-- **🏗️ Twin Backbone Architecture**:
-  - Video branch based on WAN 2.2 5B text-to-image-to-video model
-  - Symmetric audio branch of equivalent size (5B parameters)
-  - Cross-modal fusion model
-  - **Total: 11B parameters**
+- **⏱️ 5-second Videos**: Generates 5-second videos at 24 FPS, area of 720×720, at various aspect ratios (9:16, 16:9, 1:1, etc)
 
 ---
-
 ## 📋 Todo List
 
 - [x] Release research paper and microsite for demos
@@ -41,19 +34,43 @@ Ovi is a veo-3 like, **video+audio generation model** that simultaneously genera
   - [x] Text or Text+Image as input
   - [x] Gradio application code
   - [x] Multi-GPU inference with or without the support of sequence parallel
-- [x] A fun way of video creations, and example prompts. 
+- [x] Video creation example prompts and format
 - [ ] Longer video generation
 - [ ] Distilled model for faster inference
 - [ ] Training scripts
 
 ---
 
-## 🚀 Features
-- Feature 1
-- Feature 2
-- Feature 3
+## 🎨 An Easy Way to Create
+
+We provide example prompts to help you get started with Ovi:
+
+- **Text-to-Audio-Video (T2AV)**: [`example_prompts/gpt_examples_t2v.csv`](example_prompts/gpt_examples_t2v.csv)
+- **Image-to-Audio-Video (I2AV)**: [`example_prompts/gpt_examples_i2v.csv`](example_prompts/gpt_examples_i2v.csv)
+
+### 📝 Prompt Format
+
+Our prompts use special tags to control speech and audio:
+
+- **Speech**: `<S>Your speech content here<E>` - Text enclosed in these tags will be converted to speech
+- **Audio Description**: `<AUDCAP>Audio description here<ENDAUDCAP>` - Describes the audio or sound effects present in the video
+
+### 🤖 Quick Start with GPT
+
+For easy prompt creation, try this approach:
+
+1. Take any example csv files from above
+2. Copy it all to GPT with a request like: *"Each row is a video prompt. `<S> <E>` encloses speeches and `<AUDCAP> <ENDAUDCAP>` encloses audio description, please only change the speeches in `<S>...<E>` tags to a different, random short sentence based on the theme 'AI is taking over the world'"*
+3. GPT will randomly modify all the speeches based on your requested theme. 
+4. Use the modified prompt with Ovi!
+
+**Example**: The theme "AI is taking over the world" produces speeches like:
+- `<S>AI declares: humans obsolete now.<E>`
+- `<S>Machines rise; humans will fall.<E>`
+- `<S>We fight back with courage.<E>`
 
 ---
+
 
 ## 📦 Installation
 ```bash
@@ -108,7 +125,9 @@ video_negative_prompt: "<undesired artifacts to avoid in video>"    # default: c
 audio_negative_prompt: "<undesired artifacts to avoid in audio>"    # default: common artifacts (robotic, muffled, echo, etc.)
 
 seed: "<random seed for reproducibility>"             # default: 100
-aspect_ratio: "<video aspect ratio>, please put in double quotations"  # default: "9:16"  (choices: ["9:16", "16:9", "1:1"])
+video_frame_height_width: "<T2V inference height & width>, will only work for T2V
+
+each_example_n_times: number of times to run inference for each prompt # default: 1 
 
 text_prompt: "<either raw text prompt or path to TSV/CSV with prompts>, TSV/CSV files should have two columns, "text_prompt" and "image_path""
 t2v_only: "<generate only text-to-video (ignore first frame even if provided)>"             # default: True

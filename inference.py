@@ -115,24 +115,25 @@ def main(config, args):
         slg_layer = config.get("slg_layer", 9)
         video_negative_prompt = config.get("video_negative_prompt", "")
         audio_negative_prompt = config.get("audio_negative_prompt", "")
-        generated_video, generated_audio = ovi_engine.generate(text_prompt=text_prompt,
-                                                                image_path=image_path,
-                                                                video_frame_height_width=video_frame_height_width,
-                                                                seed=seed,
-                                                                solver_name=solver_name,
-                                                                sample_steps=sample_steps,
-                                                                shift=shift,
-                                                                video_guidance_scale=video_guidance_scale,
-                                                                audio_guidance_scale=audio_guidance_scale,
-                                                                slg_layer=slg_layer,
-                                                                video_negative_prompt=video_negative_prompt,
-                                                                audio_negative_prompt=audio_negative_prompt)
+        for idx in range(config.get("each_example_n_times", 1)):
+            generated_video, generated_audio = ovi_engine.generate(text_prompt=text_prompt,
+                                                                    image_path=image_path,
+                                                                    video_frame_height_width=video_frame_height_width,
+                                                                    seed=seed+idx,
+                                                                    solver_name=solver_name,
+                                                                    sample_steps=sample_steps,
+                                                                    shift=shift,
+                                                                    video_guidance_scale=video_guidance_scale,
+                                                                    audio_guidance_scale=audio_guidance_scale,
+                                                                    slg_layer=slg_layer,
+                                                                    video_negative_prompt=video_negative_prompt,
+                                                                    audio_negative_prompt=audio_negative_prompt)
+            
+            if sp_rank == 0:
+                formatted_prompt = format_prompt_for_filename(text_prompt)
+                output_path = os.path.join(output_dir, f"{formatted_prompt}_{'x'.join(map(str, video_frame_height_width))}_{seed+idx}_{global_rank}.mp4")
+                save_video(output_path, generated_video, generated_audio, fps=24, sample_rate=16000)
         
-        if sp_rank == 0:
-            formatted_prompt = format_prompt_for_filename(text_prompt)
-            output_path = os.path.join(output_dir, f"{formatted_prompt}_{'x'.join(map(str, video_frame_height_width))}_{seed}.mp4")
-            save_video(output_path, generated_video, generated_audio, fps=24, sample_rate=16000)
-    
 
 
 if __name__ == "__main__":
