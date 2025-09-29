@@ -156,7 +156,7 @@ def validate_and_process_user_prompt(text_prompt: str, image_path: str = None) -
         text_prompts = list(df["text_prompt"])
         if "image_path" in df.keys():
             image_paths = list(df["image_path"])
-            assert all(os.path.isfile(p) for p in image_paths), "One or more image paths in the TSV file do not exist."
+            assert all(p is None or len(p) == 0 or os.path.isfile(p) for p in image_paths), "One or more image paths in the TSV file do not exist."
         else:
             print("Warning: image_path was not found, assuming t2v mode...")
             image_paths = [None] * len(text_prompts)

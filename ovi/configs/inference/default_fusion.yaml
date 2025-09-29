@@ -1,4 +1,1 @@
-model:
-  checkpoint_path: /data/weiminwang/ckpts/MovieMachines/mp_rank_00_model_states_25000.pt
-
 ckpt_dir: ./ckpts
