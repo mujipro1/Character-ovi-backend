@@ -12,9 +12,10 @@
 </div>
 
 <p align="center">
-<video src="assets/ovi_trailer.mp4" controls width="720">
-  Your browser does not support the video tag.
-</video>
+
+[ovi_trailer.webm](assets/ovi_trailer.mp4)
+
+*Ovi Demo Video - Text and Image to Audio-Video Generation*
 </p>
 
 ---
