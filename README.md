@@ -30,8 +30,8 @@ Ovi is a veo-3 like, **video+audio generation model** that simultaneously genera
 ---
 ## 📋 Todo List
 
-- [x] Release research paper and microsite for demos
-- [x] Checkpoint of 11B model 
+- [x] Release research paper and [microsite for demos](https://aaxwaz.github.io/Ovi)
+- [x] Checkpoint of 10B model
 - [x] Inference Codes
   - [x] Text or Text+Image as input
   - [x] Gradio application code
@@ -106,46 +106,65 @@ OR
 python3 download_weights.py --output-dir custom_dir
 ```
 
-## Run Examples
-Inference parameters are controlled via a yaml file, for example `ovi/configs/inference/inference_fusion.yaml`
+## 🚀 Run Examples
+
+#### Configure Ovi
+
+Ovi's behavior and output can be customized by modifying [ovi/configs/inference/inference_fusion.yaml](ovi/configs/inference/inference_fusion.yaml) configuration file.
+The following parameters control generation quality, video resolution, and how text, image, and audio inputs are balanced:
+
+```yaml
+# Output and Model Configuration
+output_dir: "/path/to/save/your/videos"                    # Directory to save generated videos
+ckpt_dir: "/path/to/your/ckpts/dir"                        # Path to model checkpoints
+
+# Generation Quality Settings
+num_steps: 50                             # Number of denoising steps. Lower (30-40) = faster generation
+solver_name: "unipc"                     # Sampling algorithm for denoising process
+shift: 5.0                               # Timestep shift factor for sampling scheduler
+seed: 100                                # Random seed for reproducible results
+
+# Guidance Strength Control
+audio_guidance_scale: 3.0                # Strength of audio conditioning. Higher = better audio-text sync
+video_guidance_scale: 4.0                # Strength of video conditioning. Higher = better video-text adherence
+slg_layer: 11                            # Layer for applying SLG (Skip Layer Guidance) technique - feel free to try different layers!
+
+# Multi-GPU and Performance
+sp_size: 1                               # Sequence parallelism size. Set equal to number of GPUs used
+shard_text_model: false                  # Distribute text model across multiple devices
+shard_fusion_model: false                # Distribute fusion model across multiple devices
+
+# Input Configuration
+text_prompt: "/path/to/csv" or "your prompt here"          # Text prompt OR path to CSV/TSV file with prompts
+t2v_only: true                          # Generate text-to-video only (ignore image input)
+video_frame_height_width: [512, 992]    # Video dimensions [height, width] for T2V mode
+each_example_n_times: 1                  # Number of times to generate each prompt
+
+# Quality Control (Negative Prompts)
+video_negative_prompt: "jitter, bad hands, blur, distortion"  # Artifacts to avoid in video
+audio_negative_prompt: "robotic, muffled, echo, distorted"    # Artifacts to avoid in audio
 ```
-output_dir: "<path to save generated outputs>"  # default: ./outputs
-ckpt_dir: "<path to model checkpoints>"         # default: ./ckpts
 
-num_steps: "<number of sampling steps>"         # default: 50
-solver_name: "<sampler/solver algorithm>"       # default: unipc
-shift: "<timestep shift factor>"                # default: 5.0
-sp_size: "<sequence parallel size>"            # default: 1
+### 🎬 Running Inference
 
-audio_guidance_scale: "<strength of audio conditioning>"  # default: 3.0
-video_guidance_scale: "<strength of video conditioning>"  # default: 4.0
-
-shard_text_model: "<whether to shard text model across devices>"    # default: False
-shard_fusion_model: "<whether to shard fusion model across devices>" # default: False
-
-video_negative_prompt: "<undesired artifacts to avoid in video>"    # default: common artifacts (jitter, bad hands, blur, etc.)
-audio_negative_prompt: "<undesired artifacts to avoid in audio>"    # default: common artifacts (robotic, muffled, echo, etc.)
-
-seed: "<random seed for reproducibility>"             # default: 100
-video_frame_height_width: "<T2V inference height & width>, will only work for T2V
-
-each_example_n_times: number of times to run inference for each prompt # default: 1 
-
-text_prompt: "<either raw text prompt or path to TSV/CSV with prompts>, TSV/CSV files should have two columns, "text_prompt" and "image_path""
-t2v_only: "<generate only text-to-video (ignore first frame even if provided)>"             # default: True
-slg_layer: "<which layer to apply SLG guidance>"                     # default: 9
-```
-
-### a. single process (for a single GPU, text_prompt can be a single string input or a csv file containing prompts and images)
-```
+#### **Single GPU** (Simple Setup)
+```bash
 python3 inference.py --config-file ovi/configs/inference/inference_fusion.yaml
 ```
+*Use this for single GPU setups. The `text_prompt` can be a single string or path to a CSV file.*
 
-### b. multiprocess (for multiple GPUs, where we can run samples in parallel)
-```
+#### **Multi-GPU** (Parallel Processing)
+```bash
 torchrun --nnodes 1 --nproc_per_node 8 inference.py --config-file ovi/configs/inference/inference_fusion.yaml
 ```
+*Use this to run samples in parallel across multiple GPUs for faster processing.*
 
+---
 
+## 🙏 Acknowledgements
 
+We would like to thank the following projects for their contributions to Ovi:
+
+- **[Wan2.2](https://github.com/Wan-Video/Wan2.2)**: Our video branch is initialized from the Wan2.2 repository
+- **[MMAudio](https://github.com/hkchengrex/MMAudio)**: Our audio encoder and decoder components are borrowed from the MMAudio project
 
