@@ -161,6 +161,12 @@ torchrun --nnodes 1 --nproc_per_node 8 inference.py --config-file ovi/configs/in
 ```
 *Use this to run samples in parallel across multiple GPUs for faster processing.*
 
+
+### Gradio
+We provide a simple script to run our model in a gradio UI. It uses the `ckpt_dir` in `ovi/configs/inference/inference_fusion.yaml` to initialize the model
+```bash
+python3 gradio_app.py
+```
 ---
 
 ## 🙏 Acknowledgements
