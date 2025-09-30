@@ -110,9 +110,9 @@ def main(config, args):
         solver_name = config.get("solver_name", "unipc")
         sample_steps = config.get("sample_steps", 50)
         shift = config.get("shift", 5.0)
-        video_guidance_scale = config.get("video_guidance_scale", 5.0)
-        audio_guidance_scale = config.get("audio_guidance_scale", 4.0)
-        slg_layer = config.get("slg_layer", 9)
+        video_guidance_scale = config.get("video_guidance_scale", 4.0)
+        audio_guidance_scale = config.get("audio_guidance_scale", 3.0)
+        slg_layer = config.get("slg_layer", 11)
         video_negative_prompt = config.get("video_negative_prompt", "")
         audio_negative_prompt = config.get("audio_negative_prompt", "")
         for idx in range(config.get("each_example_n_times", 1)):

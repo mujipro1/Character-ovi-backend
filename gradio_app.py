@@ -79,10 +79,10 @@ with gr.Blocks() as demo:
                 minimum=20,
                 maximum=100
             )
-            shift = gr.Slider(0.0, 20.0, value=5.0, step=1.0, label="Shift")
-            video_guidance_scale = gr.Slider(0.0, 10.0, value=5.0, step=0.5, label="Video Guidance Scale")
-            audio_guidance_scale = gr.Slider(0.0, 10.0, value=4.0, step=0.5, label="Audio Guidance Scale")
-            slg_layer = gr.Slider(0, 30, value=9, step=1, label="SLG Layer")
+            shift = gr.Slider(minimum=0.0, maximum=20.0, value=5.0, step=1.0, label="Shift")
+            video_guidance_scale = gr.Slider(minimum=0.0, maximum=10.0, value=4.0, step=0.5, label="Video Guidance Scale")
+            audio_guidance_scale = gr.Slider(minimum=0.0, maximum=10.0, value=3.0, step=0.5, label="Audio Guidance Scale")
+            slg_layer = gr.Number(minimum=-1, maximum=30, value=11, step=1, label="SLG Layer")
             video_negative_prompt = gr.Textbox(label="Video Negative Prompt", placeholder="Things to avoid in video")
             audio_negative_prompt = gr.Textbox(label="Audio Negative Prompt", placeholder="Things to avoid in audio")
 

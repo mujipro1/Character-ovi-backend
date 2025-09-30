@@ -1,5 +1,4 @@
-ckpt_dir: /path/to/your/model/checkpoints/dir
-
+ckpt_dir: ./ckpts
 output_dir: ./outputs
 num_steps: 50
 solver_name: unipc
@@ -9,7 +8,7 @@ audio_guidance_scale: 3.0
 video_guidance_scale: 4.0
 shard_text_model: False
 shard_fusion_model: False
-video_negative_prompt: "excessive head movement, unnatural motion, jitter, shaky camera, unstable video, deformed hands, extra fingers, fused fingers, missing fingers, six fingers, mutated hands, malformed hands, distorted hands, unnatural hand pose, bad anatomy, text captions, closed captions, low quality, blurry, pixelated, artifacts, distorted, noisy, poor resolution"
+video_negative_prompt: "subtitiles, text captions, closed captions, excessive head movement, unnatural motion, jitter, shaky camera, unstable video, deformed hands, extra fingers, fused fingers, missing fingers, six fingers, mutated hands, malformed hands, distorted hands, unnatural hand pose, bad anatomy, low quality, blurry, pixelated, artifacts, distorted, noisy, poor resolution"
 audio_negative_prompt: "robotic, muffled, distorted, metallic, background noise, echo, clipping, low-quality microphone, mouth clicks"
 seed: 100
 video_frame_height_width: [512, 992] # only useful if t2v_only, recommended values: [512, 992], [992, 512], [960, 512], [512, 960], [720, 720], [448, 1120]

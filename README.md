@@ -98,12 +98,14 @@ python setup.py install
 ## Download Weights
 We use open-sourced checkpoints from Wan and MMAudio, and thus we will need to download them from huggingface
 ```
-# optional can specific --output-dir to download to a specific directory, but if a custom directory is used, the inference yaml has to be updated with the custom directory as shown below
+# Default is downloaded to ./ckpts, and the inference yaml is set to ./ckpts so no change required
 python3 download_weights.py
 
 OR
 
-python3 download_weights.py --output-dir custom_dir
+# Optional can specific --output-dir to download to a specific directory
+# but if a custom directory is used, the inference yaml has to be updated with the custom directory
+python3 download_weights.py --output-dir <custom_dir>
 ```
 
 ## 🚀 Run Examples
