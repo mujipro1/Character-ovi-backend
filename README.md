@@ -1,5 +1,5 @@
 <div align="center">
-<h1> OVI: Twin Backbone Cross-Modal Fusion for Audio-Video Generation </h1>
+<h1> Ovi: Twin Backbone Cross-Modal Fusion for Audio-Video Generation </h1>
 
 <a href="#"><img src="https://img.shields.io/badge/arXiv%20paper-Coming%20Soon-b31b1b.svg"></a>
 <a href="https://aaxwaz.github.io/Ovi/"><img src="https://img.shields.io/badge/Project_page-More_visualizations-green"></a>
