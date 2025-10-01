@@ -7,6 +7,10 @@ import os
 import math
 from typing import Tuple
 import pandas as pd
+import io
+from pydub import AudioSegment
+
+
 
 def preprocess_image_tensor(image_path, device, target_dtype, h_w_multiple_of=32, resize_total_area=720*720):
     """Preprocess video data into standardized tensor format and (optionally) resize area."""
@@ -176,3 +180,42 @@ def format_prompt_for_filename(text: str) -> str:
     safe = no_tags.replace(" ", "_").replace("/", "_")
     # truncate to 50 chars
     return safe[:50]
+
+
+
+def audio_bytes_to_tensor(audio_bytes, target_sr=16000):
+    """
+    Convert audio bytes to a 16kHz mono torch tensor in [-1, 1].
+    
+    Args:
+        audio_bytes (bytes): Raw audio bytes
+        target_sr (int): Target sample rate
+    
+    Returns:
+        torch.Tensor: shape (num_samples,)
+        int: sample rate
+    """
+    # Load audio from bytes
+    audio = AudioSegment.from_file(io.BytesIO(audio_bytes), format="wav")
+
+    # Convert to mono if needed
+    if audio.channels != 1:
+        audio = audio.set_channels(1)
+
+    # Resample if needed
+    if audio.frame_rate != target_sr:
+        audio = audio.set_frame_rate(target_sr)
+
+    # Convert to numpy
+    samples = np.array(audio.get_array_of_samples())
+    samples = samples.astype(np.float32) / np.iinfo(samples.dtype).max
+
+    # Convert to torch tensor
+    tensor = torch.from_numpy(samples)  # shape: (num_samples,)
+
+    return tensor, target_sr
+
+def audio_path_to_tensor(path, target_sr=16000):
+    with open(path, "rb") as f:
+        audio_bytes = f.read()
+    return audio_bytes_to_tensor(audio_bytes, target_sr=target_sr)

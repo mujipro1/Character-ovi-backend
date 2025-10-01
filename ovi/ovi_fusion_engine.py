@@ -19,7 +19,7 @@ import traceback
 from omegaconf import OmegaConf
 from ovi.utils.processing_utils import preprocess_image_tensor, snap_hw_to_multiple_of_32
 
-DEFAULT_CONFIG = OmegaConf.load('ovi/configs/inference/default_fusion.yaml')
+DEFAULT_CONFIG = OmegaConf.load('ovi/configs/inference/inference_fusion.yaml')
 
 class OviFusionEngine:
     def __init__(self, config=DEFAULT_CONFIG, device=0, target_dtype=torch.bfloat16):
