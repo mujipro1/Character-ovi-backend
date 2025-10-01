@@ -286,3 +286,17 @@ def audio_path_to_tensor(path, target_sr=16000):
     with open(path, "rb") as f:
         audio_bytes = f.read()
     return audio_bytes_to_tensor(audio_bytes, target_sr=target_sr)
+
+def clean_text(text: str) -> str:
+    """
+    Remove all text between <S>...</E> and <AUDCAP>...</ENDAUDCAP> tags,
+    including the tags themselves.
+    """
+    # Remove <S> ... <E>
+    text = re.sub(r"<S>.*?<E>", "", text, flags=re.DOTALL)
+
+    # Remove <AUDCAP> ... <ENDAUDCAP>
+    text = re.sub(r"<AUDCAP>.*?<ENDAUDCAP>", "", text, flags=re.DOTALL)
+
+    # Strip extra whitespace
+    return text.strip()

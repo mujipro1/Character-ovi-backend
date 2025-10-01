@@ -17,7 +17,7 @@ from ovi.utils.fm_solvers import (FlowDPMSolverMultistepScheduler,
                                get_sampling_sigmas, retrieve_timesteps)
 import traceback
 from omegaconf import OmegaConf
-from ovi.utils.processing_utils import preprocess_image_tensor, snap_hw_to_multiple_of_32, scale_hw_to_area_divisible
+from ovi.utils.processing_utils import clean_text, preprocess_image_tensor, snap_hw_to_multiple_of_32, scale_hw_to_area_divisible
 
 DEFAULT_CONFIG = OmegaConf.load('ovi/configs/inference/inference_fusion.yaml')
 
@@ -151,7 +151,7 @@ class OviFusionEngine:
                     # this already means t2v mode with image model
                     image_h, image_w = scale_hw_to_area_divisible(video_h, video_w, area = 1024 * 1024)
                     image = self.image_model(
-                        text_prompt,
+                        clean_text(text_prompt),
                         height=image_h,
                         width=image_w,
                         guidance_scale=4.5,
@@ -268,7 +268,6 @@ class OviFusionEngine:
             logging.error(traceback.format_exc())
             return None
             
-
     def offload_to_cpu(self, model):
         model = model.cpu()
         torch.cuda.synchronize()
