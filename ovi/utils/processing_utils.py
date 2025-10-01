@@ -7,6 +7,10 @@ import os
 import math
 from typing import Tuple
 import pandas as pd
+import io
+from pydub import AudioSegment
+from PIL import Image
+
 
 def preprocess_image_tensor(image_path, device, target_dtype, h_w_multiple_of=32, resize_total_area=720*720):
     """Preprocess video data into standardized tensor format and (optionally) resize area."""
@@ -50,8 +54,15 @@ def preprocess_image_tensor(image_path, device, target_dtype, h_w_multiple_of=32
         H_best, W_best = min(candidates, key=score)
         return H_best, W_best
 
-    image = cv2.imread(image_path)
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    if isinstance(image_path, str):
+        image = cv2.imread(image_path)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    else:
+        assert isinstance(image_path, Image.Image)
+        if image_path.mode != "RGB":
+            image_path = image_path.convert("RGB")
+        image = np.array(image_path)
+
     image = image.transpose(2, 0, 1)
     image = image.astype(np.float32) / 255.0
 
@@ -127,12 +138,70 @@ def calc_dims_from_area(
     return height, width
 
 
-def snap_hw_to_multiple_of_32(h: int, w: int) -> tuple[int, int]:
-    """Round H, W to the nearest multiples of 32 (min 32)."""
+def snap_hw_to_multiple_of_32(h: int, w: int, area = 720 * 720) -> tuple[int, int]:
+    """
+    Scale (h, w) to match a target area if provided, then snap both
+    dimensions to the nearest multiple of 32 (min 32).
+    
+    Args:
+        h (int): original height
+        w (int): original width
+        area (int, optional): target area to scale to. If None, no scaling is applied.
+    
+    Returns:
+        (new_h, new_w): dimensions adjusted
+    """
+    if h <= 0 or w <= 0:
+        raise ValueError(f"h and w must be positive, got {(h, w)}")
+
+    # If a target area is provided, rescale h, w proportionally
+    if area is not None and area > 0:
+        current_area = h * w
+        scale = math.sqrt(area / float(current_area))
+        h = int(round(h * scale))
+        w = int(round(w * scale))
+
+    # Snap to nearest multiple of 32
     def _n32(x: int) -> int:
         return max(32, int(round(x / 32)) * 32)
-    return _n32(int(h)), _n32(int(w))
 
+    return _n32(h), _n32(w)
+def scale_hw_to_area_divisible(h, w, area=1024*1024, n=16):
+    """
+    Scale (h, w) so that area ≈ A, while keeping aspect ratio,
+    and then round so both are divisible by n.
+    
+    Args:
+        h (int): original height
+        w (int): original width
+        A (int or float): target area
+        n (int): divisibility requirement
+    
+    Returns:
+        (new_h, new_w): scaled and adjusted dimensions
+    """
+    # Current area
+    current_area = h * w
+
+    if current_area == 0:
+        raise ValueError("Height and width must be positive")
+
+    # Scale factor to match target area
+    scale = math.sqrt(area / current_area)
+
+    # Apply scaling while preserving aspect ratio
+    new_h = h * scale
+    new_w = w * scale
+
+    # Round to nearest multiple of n
+    new_h = int(round(new_h / n) * n)
+    new_w = int(round(new_w / n) * n)
+
+    # Ensure non-zero
+    new_h = max(new_h, n)
+    new_w = max(new_w, n)
+
+    return new_h, new_w
 
 def validate_and_process_user_prompt(text_prompt: str, image_path: str = None) -> str:
     if not isinstance(text_prompt, str):
@@ -147,8 +216,10 @@ def validate_and_process_user_prompt(text_prompt: str, image_path: str = None) -
         
         if ext == ".csv":
             df = pd.read_csv(text_prompt)
+            df = df.fillna("")
         elif ext == ".tsv":
             df = pd.read_csv(text_prompt, sep="\t")
+            df = df.fillna("")
         else:
             raise ValueError(f"Unsupported file type: {ext}. Only .csv and .tsv are allowed.")
 
@@ -176,3 +247,56 @@ def format_prompt_for_filename(text: str) -> str:
     safe = no_tags.replace(" ", "_").replace("/", "_")
     # truncate to 50 chars
     return safe[:50]
+
+
+
+def audio_bytes_to_tensor(audio_bytes, target_sr=16000):
+    """
+    Convert audio bytes to a 16kHz mono torch tensor in [-1, 1].
+    
+    Args:
+        audio_bytes (bytes): Raw audio bytes
+        target_sr (int): Target sample rate
+    
+    Returns:
+        torch.Tensor: shape (num_samples,)
+        int: sample rate
+    """
+    # Load audio from bytes
+    audio = AudioSegment.from_file(io.BytesIO(audio_bytes), format="wav")
+
+    # Convert to mono if needed
+    if audio.channels != 1:
+        audio = audio.set_channels(1)
+
+    # Resample if needed
+    if audio.frame_rate != target_sr:
+        audio = audio.set_frame_rate(target_sr)
+
+    # Convert to numpy
+    samples = np.array(audio.get_array_of_samples())
+    samples = samples.astype(np.float32) / np.iinfo(samples.dtype).max
+
+    # Convert to torch tensor
+    tensor = torch.from_numpy(samples)  # shape: (num_samples,)
+
+    return tensor, target_sr
+
+def audio_path_to_tensor(path, target_sr=16000):
+    with open(path, "rb") as f:
+        audio_bytes = f.read()
+    return audio_bytes_to_tensor(audio_bytes, target_sr=target_sr)
+
+def clean_text(text: str) -> str:
+    """
+    Remove all text between <S>...</E> and <AUDCAP>...</ENDAUDCAP> tags,
+    including the tags themselves.
+    """
+    # Remove <S> ... <E>
+    text = re.sub(r"<S>.*?<E>", "", text, flags=re.DOTALL)
+
+    # Remove <AUDCAP> ... <ENDAUDCAP>
+    text = re.sub(r"<AUDCAP>.*?<ENDAUDCAP>", "", text, flags=re.DOTALL)
+
+    # Strip extra whitespace
+    return text.strip()

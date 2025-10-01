@@ -1,5 +1,5 @@
 <div align="center">
-<h1> OVI: Twin Backbone Cross-Modal Fusion for Audio-Video Generation </h1>
+<h1> Ovi: Twin Backbone Cross-Modal Fusion for Audio-Video Generation </h1>
 
 <a href="#"><img src="https://img.shields.io/badge/arXiv%20paper-Coming%20Soon-b31b1b.svg"></a>
 <a href="https://aaxwaz.github.io/Ovi/"><img src="https://img.shields.io/badge/Project_page-More_visualizations-green"></a>
@@ -98,12 +98,14 @@ python setup.py install
 ## Download Weights
 We use open-sourced checkpoints from Wan and MMAudio, and thus we will need to download them from huggingface
 ```
-# optional can specific --output-dir to download to a specific directory, but if a custom directory is used, the inference yaml has to be updated with the custom directory as shown below
+# Default is downloaded to ./ckpts, and the inference yaml is set to ./ckpts so no change required
 python3 download_weights.py
 
 OR
 
-python3 download_weights.py --output-dir custom_dir
+# Optional can specific --output-dir to download to a specific directory
+# but if a custom directory is used, the inference yaml has to be updated with the custom directory
+python3 download_weights.py --output-dir <custom_dir>
 ```
 
 ## 🚀 Run Examples
@@ -159,6 +161,12 @@ torchrun --nnodes 1 --nproc_per_node 8 inference.py --config-file ovi/configs/in
 ```
 *Use this to run samples in parallel across multiple GPUs for faster processing.*
 
+
+### Gradio
+We provide a simple script to run our model in a gradio UI. It uses the `ckpt_dir` in `ovi/configs/inference/inference_fusion.yaml` to initialize the model
+```bash
+python3 gradio_app.py
+```
 ---
 
 ## 🙏 Acknowledgements

@@ -59,7 +59,9 @@ def main(config, args):
     text_prompt = config.get("text_prompt")
     image_path = config.get("image_path", None)
     text_prompts, image_paths = validate_and_process_user_prompt(text_prompt, image_path)
-    if config.get("t2v_only", False):
+    assert config.get("mode") in ["t2v", "i2v", "t2i2v"], f"Invalid mode {config.get('mode')}, must be one of ['t2v', 'i2v', 't2i2v']"
+    if config.get("mode") != "i2v":
+        logging.info(f"mode: {config.get('mode')}, setting all image_paths to None")
         image_paths = [None] * len(text_prompts)
 
     logging.info("Loading OVI Fusion Engine...")
@@ -110,13 +112,13 @@ def main(config, args):
         solver_name = config.get("solver_name", "unipc")
         sample_steps = config.get("sample_steps", 50)
         shift = config.get("shift", 5.0)
-        video_guidance_scale = config.get("video_guidance_scale", 5.0)
-        audio_guidance_scale = config.get("audio_guidance_scale", 4.0)
-        slg_layer = config.get("slg_layer", 9)
+        video_guidance_scale = config.get("video_guidance_scale", 4.0)
+        audio_guidance_scale = config.get("audio_guidance_scale", 3.0)
+        slg_layer = config.get("slg_layer", 11)
         video_negative_prompt = config.get("video_negative_prompt", "")
         audio_negative_prompt = config.get("audio_negative_prompt", "")
         for idx in range(config.get("each_example_n_times", 1)):
-            generated_video, generated_audio = ovi_engine.generate(text_prompt=text_prompt,
+            generated_video, generated_audio, generated_image = ovi_engine.generate(text_prompt=text_prompt,
                                                                     image_path=image_path,
                                                                     video_frame_height_width=video_frame_height_width,
                                                                     seed=seed+idx,
@@ -133,6 +135,8 @@ def main(config, args):
                 formatted_prompt = format_prompt_for_filename(text_prompt)
                 output_path = os.path.join(output_dir, f"{formatted_prompt}_{'x'.join(map(str, video_frame_height_width))}_{seed+idx}_{global_rank}.mp4")
                 save_video(output_path, generated_video, generated_audio, fps=24, sample_rate=16000)
+                if generated_image is not None:
+                    generated_image.save(output_path.replace('.mp4', '.png'))
         
 
 

@@ -22,3 +22,5 @@ open-clip-torch
 librosa
 pandas
 gradio
+protobuf
+sentencepiece

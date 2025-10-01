@@ -32,7 +32,7 @@ def get_argument_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config-file",
                         type=str,
-                        required=True)
+                        default="ovi/configs/inference/inference_fusion.yaml")
     parser.add_argument("--local_rank",
                         type=int,
                         default=-1,
