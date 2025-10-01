@@ -14,7 +14,7 @@
 ## Video Demo
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/bace044b-a2f0-4d4b-9d9d-99f4f9c47226" width="70%" poster=""> </video>
+  <video src="https://github.com/user-attachments/assets/351bd707-8637-4412-ab53-5e85935309e3" width="70%" poster=""> </video>
 </div>
 
 ---
@@ -163,8 +163,8 @@ torchrun --nnodes 1 --nproc_per_node 8 inference.py --config-file ovi/configs/in
 
 ## 🙏 Acknowledgements
 
-We would like to thank the following projects for their contributions to Ovi:
+We would like to thank the following projects which Ovi has benefited from: 
 
 - **[Wan2.2](https://github.com/Wan-Video/Wan2.2)**: Our video branch is initialized from the Wan2.2 repository
-- **[MMAudio](https://github.com/hkchengrex/MMAudio)**: Our audio encoder and decoder components are borrowed from the MMAudio project. Some ideas are also inspired by them. 
+- **[MMAudio](https://github.com/hkchengrex/MMAudio)**: Our audio encoder and decoder components are borrowed from the MMAudio project. Some ideas are also inspired from them. 
 
