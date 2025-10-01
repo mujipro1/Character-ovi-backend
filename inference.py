@@ -116,7 +116,7 @@ def main(config, args):
         video_negative_prompt = config.get("video_negative_prompt", "")
         audio_negative_prompt = config.get("audio_negative_prompt", "")
         for idx in range(config.get("each_example_n_times", 1)):
-            generated_video, generated_audio = ovi_engine.generate(text_prompt=text_prompt,
+            generated_video, generated_audio, generated_image = ovi_engine.generate(text_prompt=text_prompt,
                                                                     image_path=image_path,
                                                                     video_frame_height_width=video_frame_height_width,
                                                                     seed=seed+idx,
@@ -133,6 +133,8 @@ def main(config, args):
                 formatted_prompt = format_prompt_for_filename(text_prompt)
                 output_path = os.path.join(output_dir, f"{formatted_prompt}_{'x'.join(map(str, video_frame_height_width))}_{seed+idx}_{global_rank}.mp4")
                 save_video(output_path, generated_video, generated_audio, fps=24, sample_rate=16000)
+                if generated_image is not None:
+                    generated_image.save(output_path.replace('.mp4', '.png'))
         
 
 

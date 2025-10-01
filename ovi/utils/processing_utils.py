@@ -9,7 +9,7 @@ from typing import Tuple
 import pandas as pd
 import io
 from pydub import AudioSegment
-
+from PIL import Image
 
 
 def preprocess_image_tensor(image_path, device, target_dtype, h_w_multiple_of=32, resize_total_area=720*720):
@@ -54,8 +54,15 @@ def preprocess_image_tensor(image_path, device, target_dtype, h_w_multiple_of=32
         H_best, W_best = min(candidates, key=score)
         return H_best, W_best
 
-    image = cv2.imread(image_path)
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    if isinstance(image_path, str):
+        image = cv2.imread(image_path)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    else:
+        assert isinstance(image_path, Image.Image)
+        if image_path.mode != "RGB":
+            image_path = image_path.convert("RGB")
+        image = np.array(image_path)
+
     image = image.transpose(2, 0, 1)
     image = image.astype(np.float32) / 255.0
 
@@ -131,12 +138,70 @@ def calc_dims_from_area(
     return height, width
 
 
-def snap_hw_to_multiple_of_32(h: int, w: int) -> tuple[int, int]:
-    """Round H, W to the nearest multiples of 32 (min 32)."""
+def snap_hw_to_multiple_of_32(h: int, w: int, area = 720 * 720) -> tuple[int, int]:
+    """
+    Scale (h, w) to match a target area if provided, then snap both
+    dimensions to the nearest multiple of 32 (min 32).
+    
+    Args:
+        h (int): original height
+        w (int): original width
+        area (int, optional): target area to scale to. If None, no scaling is applied.
+    
+    Returns:
+        (new_h, new_w): dimensions adjusted
+    """
+    if h <= 0 or w <= 0:
+        raise ValueError(f"h and w must be positive, got {(h, w)}")
+
+    # If a target area is provided, rescale h, w proportionally
+    if area is not None and area > 0:
+        current_area = h * w
+        scale = math.sqrt(area / float(current_area))
+        h = int(round(h * scale))
+        w = int(round(w * scale))
+
+    # Snap to nearest multiple of 32
     def _n32(x: int) -> int:
         return max(32, int(round(x / 32)) * 32)
-    return _n32(int(h)), _n32(int(w))
 
+    return _n32(h), _n32(w)
+def scale_hw_to_area_divisible(h, w, area=1024*1024, n=16):
+    """
+    Scale (h, w) so that area ≈ A, while keeping aspect ratio,
+    and then round so both are divisible by n.
+    
+    Args:
+        h (int): original height
+        w (int): original width
+        A (int or float): target area
+        n (int): divisibility requirement
+    
+    Returns:
+        (new_h, new_w): scaled and adjusted dimensions
+    """
+    # Current area
+    current_area = h * w
+
+    if current_area == 0:
+        raise ValueError("Height and width must be positive")
+
+    # Scale factor to match target area
+    scale = math.sqrt(area / current_area)
+
+    # Apply scaling while preserving aspect ratio
+    new_h = h * scale
+    new_w = w * scale
+
+    # Round to nearest multiple of n
+    new_h = int(round(new_h / n) * n)
+    new_w = int(round(new_w / n) * n)
+
+    # Ensure non-zero
+    new_h = max(new_h, n)
+    new_w = max(new_w, n)
+
+    return new_h, new_w
 
 def validate_and_process_user_prompt(text_prompt: str, image_path: str = None) -> str:
     if not isinstance(text_prompt, str):
@@ -151,8 +216,10 @@ def validate_and_process_user_prompt(text_prompt: str, image_path: str = None) -
         
         if ext == ".csv":
             df = pd.read_csv(text_prompt)
+            df = df.fillna("")
         elif ext == ".tsv":
             df = pd.read_csv(text_prompt, sep="\t")
+            df = df.fillna("")
         else:
             raise ValueError(f"Unsupported file type: {ext}. Only .csv and .tsv are allowed.")
 
