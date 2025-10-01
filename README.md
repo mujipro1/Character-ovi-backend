@@ -37,6 +37,7 @@ Ovi is a veo-3 like, **video+audio generation model** that simultaneously genera
   - [x] Gradio application code
   - [x] Multi-GPU inference with or without the support of sequence parallel
 - [x] Video creation example prompts and format
+- [ ] Finetuned model with higher resolution
 - [ ] Longer video generation
 - [ ] Distilled model for faster inference
 - [ ] Training scripts
