@@ -27,7 +27,7 @@ args = parser.parse_args()
 # Initialize OviFusionEngine
 print("loading model... will always use cpu_offload=True for gradio demo")
 DEFAULT_CONFIG['cpu_offload'] = args.cpu_offload or args.use_image_gen  # always use cpu offload if image generation is enabled
-DEFAULT_CONFIG['generate_first_frame'] = False  # hardcoded since it is always cpu offloaded
+DEFAULT_CONFIG['mode'] = "t2v"  # hardcoded since it is always cpu offloaded
 ovi_engine = OviFusionEngine()
 flux_model = None
 if args.use_image_gen:
@@ -128,13 +128,12 @@ with gr.Blocks() as demo:
 
     with gr.Row():
         with gr.Column():
-            # Shared image box
+            # Image section
             image = gr.Image(type="filepath", label="First Frame Image (upload or generate)")
-
-            text_prompt = gr.Textbox(label="Text Prompt", placeholder="Describe your video or image...")
 
             if args.use_image_gen:
                 with gr.Accordion("🖼️ Image Generation Options", visible=True):
+                    image_text_prompt = gr.Textbox(label="Image Prompt", placeholder="Describe the image you want to generate...")
                     image_seed = gr.Number(minimum=0, maximum=100000, value=42, label="Image Seed")
                     image_height = gr.Number(minimum=128, maximum=1280, value=720, step=32, label="Image Height")
                     image_width = gr.Number(minimum=128, maximum=1280, value=1280, step=32, label="Image Width")
@@ -143,6 +142,7 @@ with gr.Blocks() as demo:
                 gen_img_btn = None
 
             with gr.Accordion("🎬 Video Generation Options", open=True):
+                video_text_prompt = gr.Textbox(label="Video Prompt", placeholder="Describe your video...")
                 video_height = gr.Number(minimum=128, maximum=1280, value=512, step=32, label="Video Height")
                 video_width = gr.Number(minimum=128, maximum=1280, value=992, step=32, label="Video Width")
 
@@ -172,7 +172,7 @@ with gr.Blocks() as demo:
     if args.use_image_gen and gen_img_btn is not None:
         gen_img_btn.click(
             fn=generate_image,
-            inputs=[text_prompt, image_seed, image_height, image_width],
+            inputs=[image_text_prompt, image_seed, image_height, image_width],
             outputs=[image],
         )
 
@@ -180,7 +180,7 @@ with gr.Blocks() as demo:
     run_btn.click(
         fn=generate_video,
         inputs=[
-            text_prompt, image, video_height, video_width, video_seed, solver_name,
+            video_text_prompt, image, video_height, video_width, video_seed, solver_name,
             sample_steps, shift, video_guidance_scale, audio_guidance_scale,
             slg_layer, video_negative_prompt, audio_negative_prompt,
         ],

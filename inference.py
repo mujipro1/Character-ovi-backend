@@ -59,7 +59,9 @@ def main(config, args):
     text_prompt = config.get("text_prompt")
     image_path = config.get("image_path", None)
     text_prompts, image_paths = validate_and_process_user_prompt(text_prompt, image_path)
-    if config.get("t2v_only", False):
+    assert config.get("mode") in ["t2v", "i2v", "t2i2v"], f"Invalid mode {config.get('mode')}, must be one of ['t2v', 'i2v', 't2i2v']"
+    if config.get("mode") != "i2v":
+        logging.info(f"mode: {config.get('mode')}, setting all image_paths to None")
         image_paths = [None] * len(text_prompts)
 
     logging.info("Loading OVI Fusion Engine...")

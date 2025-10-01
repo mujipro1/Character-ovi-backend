@@ -4,16 +4,14 @@ num_steps: 50
 solver_name: unipc
 shift: 5.0
 sp_size: 1
-audio_guidance_scale: 3.0
-video_guidance_scale: 4.0
-shard_text_model: False
-shard_fusion_model: False
-video_negative_prompt: "subtitiles, text captions, closed captions, excessive head movement, unnatural motion, jitter, shaky camera, unstable video, deformed hands, extra fingers, fused fingers, missing fingers, six fingers, mutated hands, malformed hands, distorted hands, unnatural hand pose, bad anatomy, low quality, blurry, pixelated, artifacts, distorted, noisy, poor resolution"
-audio_negative_prompt: "robotic, muffled, distorted, metallic, background noise, echo, clipping, low-quality microphone, mouth clicks"
-seed: 100
-video_frame_height_width: [512, 992] # only useful if t2v_only, recommended values: [512, 992], [992, 512], [960, 512], [512, 960], [720, 720], [448, 1120]
-# text_prompt: "A red-haired woman with fair skin, wearing a maroon cardigan over a tan top, smiles and looks towards someone off-screen to her left. She sits at a dark wooden table covered with numerous colorful puzzle pieces, and her hands are sorting through them. In the blurry foreground to the left, the back of a person's head and shoulder are visible. The background features light-colored louvered shutters. The woman continues to smile as she asks, <S>Was that Scott, your manager?<E> An unseen man responds, <S>Yeah.<E> As the woman maintains her smile, continuing to sort puzzle pieces, the man adds, <S>He just hired Mrs. Appletree to be his new secre-<E> The woman glances down at the puzzle pieces briefly before looking back up with a slight widening of her smile.. <AUDCAP>Soft chatter, clinking sounds of puzzle pieces, distinct male voice, distinct female voice.<ENDAUDCAP>"
+audio_guidance_scale: 4.0
+video_guidance_scale: 5.0
+mode: "t2i2v" # ["t2v", "i2v", "t2i2v"] all comes with audio
+cpu_offload: True
+seed: 103
+video_negative_prompt: "jitter, bad hands, blur, distortion"  # Artifacts to avoid in video
+audio_negative_prompt: "robotic, muffled, echo, distorted"    # Artifacts to avoid in audio
+video_frame_height_width: [512, 992] # only useful if mode = t2v or t2i2v, recommended values: [512, 992], [992, 512], [960, 512], [512, 960], [720, 720], [448, 1120]
 text_prompt: example_prompts/gpt_examples_i2v.csv
-t2v_only: False
-slg_layer: 11
-each_example_n_times: 1
+slg_layer: 9
+each_example_n_times: 2

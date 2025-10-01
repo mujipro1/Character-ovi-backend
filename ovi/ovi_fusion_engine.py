@@ -27,7 +27,7 @@ class OviFusionEngine:
         self.device = device
         self.target_dtype = target_dtype
         meta_init = True
-        self.cpu_offload = config.get("cpu_offload", False) or config.get("generate_first_frame", False)
+        self.cpu_offload = config.get("cpu_offload", False) or config.get("mode") == "t2i2v"
         if self.cpu_offload:
             logging.info("CPU offloading is enabled. Initializing all models aside from VAEs on CPU")
 
@@ -72,7 +72,7 @@ class OviFusionEngine:
 
         ## Load t2i as part of pipeline
         self.image_model = None
-        if config.get("generate_first_frame", False):
+        if config.get("mode") == "t2i2v":
             logging.info(f"Loading Flux Krea for first frame generation...")
             self.image_model = FluxPipeline.from_pretrained("black-forest-labs/FLUX.1-Krea-dev", torch_dtype=torch.bfloat16)
             self.image_model.enable_model_cpu_offload(gpu_id=self.device) #save some VRAM by offloading the model to CPU. Remove this if you have enough GPU VRAM
@@ -143,7 +143,7 @@ class OviFusionEngine:
                 # Load first frame from path
                 first_frame = preprocess_image_tensor(image_path, self.device, self.target_dtype)
             else:   
-                assert video_frame_height_width is not None, f"If t2v_only=True or t2v mode or generate_first_frame=True, video_frame_height_width must be provided."
+                assert video_frame_height_width is not None, f"If mode=t2v or t2i2v, video_frame_height_width must be provided."
                 video_h, video_w = video_frame_height_width
                 video_h, video_w = snap_hw_to_multiple_of_32(video_h, video_w, area = 720 * 720)
                 video_latent_h, video_latent_w = video_h // 16, video_w // 16
