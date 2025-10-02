@@ -62,8 +62,8 @@ Our prompts use special tags to control speech and audio:
 
 For easy prompt creation, try this approach:
 
-1. Take any example csv files from above
-2. Copy it all to GPT with a request like: *"Each row is a video prompt. `<S> <E>` encloses speeches and `<AUDCAP> <ENDAUDCAP>` encloses audio description, please only change the speeches in `<S>...<E>` tags to a different, random short sentence based on the theme 'AI is taking over the world'"*
+1. Take any example of the csv files from above
+2. Tell gpt to modify the speeches inclosed between all the pairs of `<S> <E>`, based on a theme such as `Human fighting against AI`
 3. GPT will randomly modify all the speeches based on your requested theme. 
 4. Use the modified prompt with Ovi!
 
@@ -76,6 +76,14 @@ For easy prompt creation, try this approach:
 
 
 ## 📦 Installation
+
+### Prerequisites
+- Python 3.10 or higher
+- CUDA-compatible GPU (for optimal performance)
+- Git
+
+### Step-by-Step Installation
+
 ```bash
 # Clone the repository
 git clone https://github.com/character-ai/Ovi.git
@@ -83,18 +91,29 @@ git clone https://github.com/character-ai/Ovi.git
 # Navigate into the project directory
 cd Ovi
 
-# Install dependencies
+# Create and activate virtual environment
 virtualenv ovi-env
 source ovi-env/bin/activate
+
+# Install PyTorch first (CUDA 12.4 version for GPU support)
 pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1
+
+# Install other dependencies
 pip install -r requirements.txt
 
-# Install Flash Attention 3 for ~15-20% gain in inference speed (Will be automatically detected and used if installed correctly)
+# Install Flash Attention for ~15-20% inference speed gain
+# Note: This requires CUDA and may take several minutes to compile
+pip install flash_attn --no-build-isolation
+```
+
+### Alternative Flash Attention Installation (Optional)
+If the above flash_attn installation fails, you can try the Flash Attention 3 method:
+```bash
 git clone https://github.com/Dao-AILab/flash-attention.git
 cd flash-attention/hopper
 python setup.py install
+cd ../..  # Return to Ovi directory
 ```
-
 
 ## Download Weights
 We use open-sourced checkpoints from Wan and MMAudio, and thus we will need to download them from huggingface
@@ -134,13 +153,11 @@ slg_layer: 11                            # Layer for applying SLG (Skip Layer Gu
 
 # Multi-GPU and Performance
 sp_size: 1                               # Sequence parallelism size. Set equal to number of GPUs used
-shard_text_model: false                  # Distribute text model across multiple devices
-shard_fusion_model: false                # Distribute fusion model across multiple devices
 
 # Input Configuration
 text_prompt: "/path/to/csv" or "your prompt here"          # Text prompt OR path to CSV/TSV file with prompts
-t2v_only: true                          # Generate text-to-video only (ignore image input)
-video_frame_height_width: [512, 992]    # Video dimensions [height, width] for T2V mode
+mode: ['i2v', 't2v', 't2i2v']                          # Generate t2v, i2v or t2i2v; if t2i2v, it will use flux krea to generate starting image and then will follow with i2v
+video_frame_height_width: [512, 992]    # Video dimensions [height, width] for T2V mode only
 each_example_n_times: 1                  # Number of times to generate each prompt
 
 # Quality Control (Negative Prompts)
@@ -172,7 +189,7 @@ python3 gradio_app.py
 
 ## 🙏 Acknowledgements
 
-We would like to thank the following projects which Ovi has benefited from: 
+We would like to thank the following projects:
 
 - **[Wan2.2](https://github.com/Wan-Video/Wan2.2)**: Our video branch is initialized from the Wan2.2 repository
 - **[MMAudio](https://github.com/hkchengrex/MMAudio)**: Our audio encoder and decoder components are borrowed from the MMAudio project. Some ideas are also inspired from them. 

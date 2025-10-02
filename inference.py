@@ -64,7 +64,7 @@ def main(config, args):
         logging.info(f"mode: {config.get('mode')}, setting all image_paths to None")
         image_paths = [None] * len(text_prompts)
     else:
-        assert all(p is not None and os.path.isfile(p) for p in image_paths), "In i2v mode, all image paths must be provided."
+        assert all(p is not None and os.path.isfile(p) for p in image_paths), f"In i2v mode, all image paths must be provided.{image_paths}"
 
     logging.info("Loading OVI Fusion Engine...")
     ovi_engine = OviFusionEngine(config=config, device=device, target_dtype=target_dtype)
