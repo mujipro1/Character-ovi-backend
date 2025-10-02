@@ -58,11 +58,13 @@ def main(config, args):
     # validate inputs before loading model to not waste time if input is not valid
     text_prompt = config.get("text_prompt")
     image_path = config.get("image_path", None)
-    text_prompts, image_paths = validate_and_process_user_prompt(text_prompt, image_path)
     assert config.get("mode") in ["t2v", "i2v", "t2i2v"], f"Invalid mode {config.get('mode')}, must be one of ['t2v', 'i2v', 't2i2v']"
+    text_prompts, image_paths = validate_and_process_user_prompt(text_prompt, image_path, mode=config.get("mode"))
     if config.get("mode") != "i2v":
         logging.info(f"mode: {config.get('mode')}, setting all image_paths to None")
         image_paths = [None] * len(text_prompts)
+    else:
+        assert all(p is not None and os.path.isfile(p) for p in image_paths), "In i2v mode, all image paths must be provided."
 
     logging.info("Loading OVI Fusion Engine...")
     ovi_engine = OviFusionEngine(config=config, device=device, target_dtype=target_dtype)

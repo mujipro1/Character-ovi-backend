@@ -203,7 +203,7 @@ def scale_hw_to_area_divisible(h, w, area=1024*1024, n=16):
 
     return new_h, new_w
 
-def validate_and_process_user_prompt(text_prompt: str, image_path: str = None) -> str:
+def validate_and_process_user_prompt(text_prompt: str, image_path: str = None, mode: str = "t2v") -> str:
     if not isinstance(text_prompt, str):
         raise ValueError("User input must be a string")
 
@@ -225,11 +225,11 @@ def validate_and_process_user_prompt(text_prompt: str, image_path: str = None) -
 
         assert "text_prompt" in df.keys(), f"Missing required columns in TSV file."
         text_prompts = list(df["text_prompt"])
-        if "image_path" in df.keys():
+        if mode == "i2v" and image_path in df.keys():
             image_paths = list(df["image_path"])
             assert all(p is None or len(p) == 0 or os.path.isfile(p) for p in image_paths), "One or more image paths in the TSV file do not exist."
         else:
-            print("Warning: image_path was not found, assuming t2v mode...")
+            print("Warning: image_path was not found, assuming t2v or t2i2v mode...")
             image_paths = [None] * len(text_prompts)
         
     else:

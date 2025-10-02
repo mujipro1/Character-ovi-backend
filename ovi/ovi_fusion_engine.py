@@ -250,6 +250,9 @@ class OviFusionEngine:
 
                 if self.cpu_offload:
                     self.offload_to_cpu(self.model)
+                
+                if is_i2v:
+                    video_noise[:, :1] = latents_images
 
                 # Decode audio
                 audio_latents_for_vae = audio_noise.unsqueeze(0).transpose(1, 2)  # 1, c, l
