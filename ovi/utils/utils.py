@@ -12,18 +12,28 @@ from sys import argv
 __all__ = ['cache_video', 'cache_image', 'str2bool']
 
 
-import deepspeed
-
-
 def get_arguments(args=argv[1:]):
     parser = get_argument_parser()
-    # Include DeepSpeed configuration arguments
-    parser = deepspeed.add_config_arguments(parser)
-
     args = parser.parse_args(args)
+
+    # If local_rank wasn't provided, try to infer from common env vars
+    if getattr(args, "local_rank", -1) == -1:
+        env_lr = os.environ.get("LOCAL_RANK") or os.environ.get("SLURM_LOCALID")
+        try:
+            if env_lr is not None:
+                args.local_rank = int(env_lr)
+        except ValueError:
+            pass
 
     # no cuda mode is not supported
     args.no_cuda = False
+
+    # Optionally bind this process to a specific CUDA device
+    if torch.cuda.is_available() and getattr(args, "local_rank", -1) >= 0:
+        try:
+            torch.cuda.set_device(args.local_rank % torch.cuda.device_count())
+        except Exception:
+            pass
 
     return args
 
