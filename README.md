@@ -77,32 +77,25 @@ For easy prompt creation, try this approach:
 
 ## 📦 Installation
 
-### Prerequisites
-- Python 3.10 or higher
-- CUDA-compatible GPU (for optimal performance)
-- Git
-
 ### Step-by-Step Installation
 
 ```bash
 # Clone the repository
 git clone https://github.com/character-ai/Ovi.git
 
-# Navigate into the project directory
 cd Ovi
 
 # Create and activate virtual environment
 virtualenv ovi-env
 source ovi-env/bin/activate
 
-# Install PyTorch first (CUDA 12.4 version for GPU support)
+# Install PyTorch first
 pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1
 
 # Install other dependencies
 pip install -r requirements.txt
 
-# Install Flash Attention for ~15-20% inference speed gain
-# Note: This requires CUDA and may take several minutes to compile
+# Install Flash Attention
 pip install flash_attn --no-build-isolation
 ```
 
