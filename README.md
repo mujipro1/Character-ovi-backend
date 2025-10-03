@@ -89,7 +89,7 @@ source ovi-env/bin/activate
 pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1
 pip install -r requirements.txt
 
-# Install Flash Attention 3 for ~15-20% gain in inference speed (Will be automatically detected and used if installed correctly)
+# Install Flash Attention 
 git clone https://github.com/Dao-AILab/flash-attention.git
 cd flash-attention/hopper
 python setup.py install
