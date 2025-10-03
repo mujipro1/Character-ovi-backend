@@ -177,6 +177,14 @@ torchrun --nnodes 1 --nproc_per_node 8 inference.py --config-file ovi/configs/in
 We provide a simple script to run our model in a gradio UI. It uses the `ckpt_dir` in `ovi/configs/inference/inference_fusion.yaml` to initialize the model
 ```bash
 python3 gradio_app.py
+
+OR
+
+# To enable cpu offload to save GPU VRAM, will slow down end to end inference by ~20 seconds
+python3 gradio_app.py --cpu_offload
+
+# To enable an additional image generation model to generate first frames for I2V
+python3 gradio_app.py --use_image_gen
 ```
 ---
 
