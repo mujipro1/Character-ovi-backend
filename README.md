@@ -26,6 +26,8 @@ Ovi is a veo-3 like, **video+audio generation model** that simultaneously genera
 - **🎬 Video+Audio Generation**: Generate synchronized video and audio content simultaneously
 - **📝 Flexible Input**: Supports text-only or text+image conditioning
 - **⏱️ 5-second Videos**: Generates 5-second videos at 24 FPS, area of 720×720, at various aspect ratios (9:16, 16:9, 1:1, etc)
+- **🎬 Create videos now on wavespeed.ai**: https://wavespeed.ai/models/character-ai/ovi/image-to-video & https://wavespeed.ai/models/character-ai/ovi/text-to-video
+- **🎬 Create videos now on HuggingFace**: https://huggingface.co/spaces/akhaliq/Ovi
 
 ---
 ## 📋 Todo List
