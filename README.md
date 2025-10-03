@@ -200,6 +200,14 @@ We would like to thank the following projects:
 
 ---
 
+## 🤝 Collaboration
+
+We welcome all types of collaboration! Whether you have feedback, want to contribute, or have any questions, please feel free to reach out.
+
+**Contact**: [Weimin Wang](https://linkedin.com/in/weimin-wang-will) for any issues or feedback.
+
+---
+
 ## ⭐ Citation
 
 If Ovi is helpful, please help to ⭐ the repo.
