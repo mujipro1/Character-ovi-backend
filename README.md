@@ -195,3 +195,24 @@ We would like to thank the following projects:
 - **[Wan2.2](https://github.com/Wan-Video/Wan2.2)**: Our video branch is initialized from the Wan2.2 repository
 - **[MMAudio](https://github.com/hkchengrex/MMAudio)**: Our audio encoder and decoder components are borrowed from the MMAudio project. Some ideas are also inspired from them. 
 
+---
+
+## ⭐ Citation
+
+If Ovi is helpful, please help to ⭐ the repo.
+
+If you find this project useful for your research, please consider citing our [paper](https://arxiv.org/abs/2509.08519).
+
+
+### BibTeX
+```bibtex
+@misc{low2025ovitwinbackbonecrossmodal,
+      title={Ovi: Twin Backbone Cross-Modal Fusion for Audio-Video Generation}, 
+      author={Chetwin Low and Weimin Wang and Calder Katyal},
+      year={2025},
+      eprint={2510.01284},
+      archivePrefix={arXiv},
+      primaryClass={cs.MM},
+      url={https://arxiv.org/abs/2510.01284}, 
+}
+```
