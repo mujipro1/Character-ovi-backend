@@ -54,7 +54,7 @@ class OviFusionEngine:
             self.offload_to_cpu(self.text_model.model)
 
         # Find fusion ckpt in the same dir used by other components
-        checkpoint_path = os.path.join(config.ckpt_dir, "model.safetensors")
+        checkpoint_path = os.path.join(config.ckpt_dir, "Ovi", "model.safetensors")
 
         if not os.path.exists(checkpoint_path):
             raise RuntimeError(f"No fusion checkpoint found in {config.ckpt_dir}")
