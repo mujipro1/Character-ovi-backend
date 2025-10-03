@@ -52,6 +52,15 @@ def main(output_dir: str):
         ]
     )
 
+    ovi_dir = os.path.join(output_dir, "Ovi")
+    timed_download(
+        repo_id="chetwinlow1/Ovi",
+        local_dir=ovi_dir,
+        allow_patterns=[
+            "model.safetensors"
+        ]
+    )
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Download models from Hugging Face")
     parser.add_argument(
