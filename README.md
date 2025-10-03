@@ -201,7 +201,7 @@ We would like to thank the following projects:
 
 If Ovi is helpful, please help to ⭐ the repo.
 
-If you find this project useful for your research, please consider citing our [paper](https://arxiv.org/abs/2509.08519).
+If you find this project useful for your research, please consider citing our [paper](https://arxiv.org/abs/2510.01284).
 
 
 ### BibTeX
