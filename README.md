@@ -146,6 +146,7 @@ slg_layer: 11                            # Layer for applying SLG (Skip Layer Gu
 
 # Multi-GPU and Performance
 sp_size: 1                               # Sequence parallelism size. Set equal to number of GPUs used
+cpu_offload: False                       # CPU offload, will largely reduce peak GPU VRAM but increase end to end runtime by ~20 seconds
 
 # Input Configuration
 text_prompt: "/path/to/csv" or "your prompt here"          # Text prompt OR path to CSV/TSV file with prompts
