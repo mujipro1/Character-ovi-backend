@@ -183,7 +183,9 @@ OR
 # To enable cpu offload to save GPU VRAM, will slow down end to end inference by ~20 seconds
 python3 gradio_app.py --cpu_offload
 
-# To enable an additional image generation model to generate first frames for I2V
+OR
+
+# To enable an additional image generation model to generate first frames for I2V, cpu_offload is automatically enabled if image generation model is enabled
 python3 gradio_app.py --use_image_gen
 ```
 ---
