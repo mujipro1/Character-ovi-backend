@@ -25,12 +25,14 @@ args = parser.parse_args()
 
 
 # Initialize OviFusionEngine
-print("loading model... will always use cpu_offload=True for gradio demo")
-DEFAULT_CONFIG['cpu_offload'] = args.cpu_offload or args.use_image_gen  # always use cpu offload if image generation is enabled
+enable_cpu_offload = args.cpu_offload or args.use_image_gen
+use_image_gen = args.use_image_gen
+print(f"loading model... {enable_cpu_offload=}, {use_image_gen=} for gradio demo")
+DEFAULT_CONFIG['cpu_offload'] = enable_cpu_offload # always use cpu offload if image generation is enabled
 DEFAULT_CONFIG['mode'] = "t2v"  # hardcoded since it is always cpu offloaded
 ovi_engine = OviFusionEngine()
 flux_model = None
-if args.use_image_gen:
+if use_image_gen:
     flux_model = FluxPipeline.from_pretrained("black-forest-labs/FLUX.1-Krea-dev", torch_dtype=torch.bfloat16)
     flux_model.enable_model_cpu_offload() #save some VRAM by offloading the model to CPU. Remove this if you have enough GPU VRAM
 print("loaded model")
@@ -158,9 +160,9 @@ with gr.Blocks() as demo:
                     maximum=100
                 )
                 shift = gr.Slider(minimum=0.0, maximum=20.0, value=5.0, step=1.0, label="Shift")
-                video_guidance_scale = gr.Slider(minimum=0.0, maximum=10.0, value=5.0, step=0.5, label="Video Guidance Scale")
-                audio_guidance_scale = gr.Slider(minimum=0.0, maximum=10.0, value=4.0, step=0.5, label="Audio Guidance Scale")
-                slg_layer = gr.Number(minimum=-1, maximum=30, value=9, step=1, label="SLG Layer")
+                video_guidance_scale = gr.Slider(minimum=0.0, maximum=10.0, value=4.0, step=0.5, label="Video Guidance Scale")
+                audio_guidance_scale = gr.Slider(minimum=0.0, maximum=10.0, value=3.0, step=0.5, label="Audio Guidance Scale")
+                slg_layer = gr.Number(minimum=-1, maximum=30, value=11, step=1, label="SLG Layer")
                 video_negative_prompt = gr.Textbox(label="Video Negative Prompt", placeholder="Things to avoid in video")
                 audio_negative_prompt = gr.Textbox(label="Audio Negative Prompt", placeholder="Things to avoid in audio")
 
