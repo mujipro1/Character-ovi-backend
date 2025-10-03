@@ -36,6 +36,8 @@ Ovi is a veo-3 like, **video+audio generation model** that simultaneously genera
   - [x] Text or Text+Image as input
   - [x] Gradio application code
   - [x] Multi-GPU inference with or without the support of sequence parallel
+  - [ ] Improve efficiency of Sequence Parallel implementation
+  - [ ] Implement Sharded inference with FSDP
 - [x] Video creation example prompts and format
 - [ ] Finetuned model with higher resolution
 - [ ] Longer video generation
@@ -173,6 +175,19 @@ torchrun --nnodes 1 --nproc_per_node 8 inference.py --config-file ovi/configs/in
 ```
 *Use this to run samples in parallel across multiple GPUs for faster processing.*
 
+### Memory & Performance Requirements
+Below are approximate GPU memory requirements for different configurations. Sequence parallel implementation will be optimized in the future.
+All End-to-End time calculated based on a 121 frame, 720x720 video, using 50 denoising steps. Minimum GPU vram requirement to run our model is **32Gb**
+
+| Sequence Parallel Size | FlashAttention-3 Enabled | CPU Offload | With Image Gen Model | Peak VRAM Required | End-to-End Time |
+|-------------------------|---------------------------|-------------|-----------------------|---------------|-----------------|
+| 1                       | Yes                        | No          | No                    | ~80 GB        | ~83s         |
+| 1                       | No                        | No          | No                    | ~80 GB        | ~96s         |
+| 1                       | Yes                        | Yes          | No                    | ~80 GB        | ~105s         |
+| 1                       | No                        | Yes          | No                    | ~32 GB        | ~118s         |
+| **1**                       | **Yes**                        | **Yes**          | **Yes**                    | **~32 GB**        | **~140s**         |
+| 4                       | Yes                        | No          | No                    | ~80 GB        | ~55s         |
+| 8                       | Yes                        | No          | No                    | ~80 GB        | ~40s         |
 
 ### Gradio
 We provide a simple script to run our model in a gradio UI. It uses the `ckpt_dir` in `ovi/configs/inference/inference_fusion.yaml` to initialize the model
