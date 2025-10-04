@@ -22,7 +22,7 @@ from ovi.utils.processing_utils import clean_text, preprocess_image_tensor, snap
 DEFAULT_CONFIG = OmegaConf.load('ovi/configs/inference/inference_fusion.yaml')
 
 class OviFusionEngine:
-    def __init__(self, config=DEFAULT_CONFIG, device=0, target_dtype=torch.bfloat16):
+    def __init__(self, config=DEFAULT_CONFIG, device=0, target_dtype=torch.bfloat16, fp8=False):
         # Load fusion model
         self.device = device
         self.target_dtype = target_dtype
@@ -34,8 +34,13 @@ class OviFusionEngine:
         model, video_config, audio_config = init_fusion_score_model_ovi(rank=device, meta_init=meta_init)
 
         if not meta_init:
-            model = model.to(dtype=target_dtype).to(device=device if not self.cpu_offload else "cpu").eval()
-    
+            if not fp8:
+                model = model.to(dtype=target_dtype)
+            model = (
+                model.to(device=device if not self.cpu_offload else "cpu")
+                .eval()
+            )
+
         # Load VAEs
         vae_model_video = init_wan_vae_2_2(config.ckpt_dir, rank=device)
         vae_model_video.model.requires_grad_(False).eval()
@@ -54,7 +59,11 @@ class OviFusionEngine:
             self.offload_to_cpu(self.text_model.model)
 
         # Find fusion ckpt in the same dir used by other components
-        checkpoint_path = os.path.join(config.ckpt_dir, "Ovi", "model.safetensors")
+        checkpoint_path = os.path.join(
+            config.ckpt_dir,
+            "Ovi",
+            "model.safetensors" if not fp8 else "model_fp8_e4m3fn.safetensors",
+        )
 
         if not os.path.exists(checkpoint_path):
             raise RuntimeError(f"No fusion checkpoint found in {config.ckpt_dir}")
@@ -63,7 +72,9 @@ class OviFusionEngine:
         load_fusion_checkpoint(model, checkpoint_path=checkpoint_path, from_meta=meta_init)
 
         if meta_init:
-            model = model.to(dtype=target_dtype).to(device=device if not self.cpu_offload else "cpu").eval()
+            if not fp8:
+                model = model.to(dtype=target_dtype)
+            model = model.to(device=device if not self.cpu_offload else "cpu").eval()
             model.set_rope_params()
         self.model = model
 
