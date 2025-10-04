@@ -186,11 +186,17 @@ class OviFusionEngine:
             text_embeddings_video_neg = text_embeddings[1]
             text_embeddings_audio_neg = text_embeddings[2]
 
-            if is_i2v:              
+            if is_i2v:
+                if self.cpu_offload:
+                    self.vae_model_video.model = self.vae_model_video.model.to(
+                        self.device
+                    )
                 with torch.no_grad():
                     latents_images = self.vae_model_video.wrapped_encode(first_frame[:, :, None]).to(self.target_dtype).squeeze(0) # c 1 h w 
                 latents_images = latents_images.to(self.target_dtype)
                 video_latent_h, video_latent_w = latents_images.shape[2], latents_images.shape[3]
+                if self.cpu_offload:
+                    self.offload_to_cpu(self.vae_model_video.model)
 
             video_noise = torch.randn((self.video_latent_channel, self.video_latent_length, video_latent_h, video_latent_w), device=self.device, dtype=self.target_dtype, generator=torch.Generator(device=self.device).manual_seed(seed))  # c, f, h, w
             audio_noise = torch.randn((self.audio_latent_length, self.audio_latent_channel), device=self.device, dtype=self.target_dtype, generator=torch.Generator(device=self.device).manual_seed(seed))  # 1, l c -> l, c
@@ -202,6 +208,8 @@ class OviFusionEngine:
             
             # Sampling loop
             if self.cpu_offload:
+                self.offload_to_cpu(self.vae_model_video.model)
+                self.offload_to_cpu(self.vae_model_audio)
                 self.model = self.model.to(self.device)
             with torch.amp.autocast('cuda', enabled=self.target_dtype != torch.float32, dtype=self.target_dtype):
                 for i, (t_v, t_a) in tqdm(enumerate(zip(timesteps_video, timesteps_audio))):
@@ -258,7 +266,11 @@ class OviFusionEngine:
 
                 if self.cpu_offload:
                     self.offload_to_cpu(self.model)
-                
+                    self.vae_model_video.model = self.vae_model_video.model.to(
+                        self.device
+                    )
+                    self.vae_model_audio = self.vae_model_audio.to(self.device)
+
                 if is_i2v:
                     video_noise[:, :1] = latents_images
 
@@ -271,7 +283,9 @@ class OviFusionEngine:
                 video_latents_for_vae = video_noise.unsqueeze(0)  # 1, c, f, h, w
                 generated_video = self.vae_model_video.wrapped_decode(video_latents_for_vae)
                 generated_video = generated_video.squeeze(0).cpu().float().numpy()  # c, f, h, w
-            
+                if self.cpu_offload:
+                    self.offload_to_cpu(self.vae_model_video.model)
+                    self.offload_to_cpu(self.vae_model_audio)
             return generated_video, generated_audio, image
 
 
