@@ -52,7 +52,7 @@ class OviFusionEngine:
         self.vae_model_audio = vae_model_audio.bfloat16()
 
         # Load T5 text model
-        self.text_model = init_text_model(config.ckpt_dir, rank=device)
+        self.text_model = init_text_model(config.ckpt_dir, rank=device, cpu_offload=self.cpu_offload)
         if config.get("shard_text_model", False):
             raise NotImplementedError("Sharding text model is not implemented yet.")
         if self.cpu_offload:
@@ -297,6 +297,7 @@ class OviFusionEngine:
         model = model.cpu()
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()
 
         return model
 
