@@ -38,8 +38,12 @@ DEFAULT_CONFIG["cpu_offload"] = (
     enable_cpu_offload  # always use cpu offload if image generation is enabled
 )
 DEFAULT_CONFIG["mode"] = "t2v"  # hardcoded since it is always cpu offloaded
-ovi_engine = OviFusionEngine(fp8=fp8)
+DEFAULT_CONFIG["fp8"] = fp8
+ovi_engine = OviFusionEngine()
 flux_model = None
+if fp8:
+    assert not use_image_gen, "Image generation with FluxPipeline is not supported with fp8 quantization. This is because if you are unable to run the bf16 model, you likely cannot run image gen model"
+    
 if use_image_gen:
     flux_model = FluxPipeline.from_pretrained("black-forest-labs/FLUX.1-Krea-dev", torch_dtype=torch.bfloat16)
     flux_model.enable_model_cpu_offload() #save some VRAM by offloading the model to CPU. Remove this if you have enough GPU VRAM

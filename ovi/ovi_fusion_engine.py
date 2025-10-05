@@ -22,7 +22,7 @@ from ovi.utils.processing_utils import clean_text, preprocess_image_tensor, snap
 DEFAULT_CONFIG = OmegaConf.load('ovi/configs/inference/inference_fusion.yaml')
 
 class OviFusionEngine:
-    def __init__(self, config=DEFAULT_CONFIG, device=0, target_dtype=torch.bfloat16, fp8=False):
+    def __init__(self, config=DEFAULT_CONFIG, device=0, target_dtype=torch.bfloat16):
         # Load fusion model
         self.device = device
         self.target_dtype = target_dtype
@@ -32,6 +32,10 @@ class OviFusionEngine:
             logging.info("CPU offloading is enabled. Initializing all models aside from VAEs on CPU")
 
         model, video_config, audio_config = init_fusion_score_model_ovi(rank=device, meta_init=meta_init)
+
+        fp8 = config.get("fp8", False)
+        if fp8:
+            assert not config.get("mode") == "t2i2v", "Image generation with FluxPipeline is not supported with fp8 quantization. This is because if you are unable to run the bf16 model, you likely cannot run image gen model"
 
         if not meta_init:
             if not fp8:
@@ -80,6 +84,7 @@ class OviFusionEngine:
 
         ## Load t2i as part of pipeline
         self.image_model = None
+        
         if config.get("mode") == "t2i2v":
             logging.info(f"Loading Flux Krea for first frame generation...")
             self.image_model = FluxPipeline.from_pretrained("black-forest-labs/FLUX.1-Krea-dev", torch_dtype=torch.bfloat16)
