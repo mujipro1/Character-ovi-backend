@@ -124,6 +124,9 @@ OR
 # Optional can specific --output-dir to download to a specific directory
 # but if a custom directory is used, the inference yaml has to be updated with the custom directory
 python3 download_weights.py --output-dir <custom_dir>
+
+# Additionally, if you only have ~ 24Gb of GPU vram, please download the fp8 quantized version of the model, and follow the following instructions in sections below to run with fp8
+wget -O "./ckpts/Ovi/model_fp8_e4m3fn.safetensors" "https://huggingface.co/rkfg/Ovi-fp8_quantized/resolve/main/model_fp8_e4m3fn.safetensors"
 ```
 
 ## 🚀 Run Examples
@@ -152,6 +155,7 @@ slg_layer: 11                            # Layer for applying SLG (Skip Layer Gu
 # Multi-GPU and Performance
 sp_size: 1                               # Sequence parallelism size. Set equal to number of GPUs used
 cpu_offload: False                       # CPU offload, will largely reduce peak GPU VRAM but increase end to end runtime by ~20 seconds
+fp8: False                               # load fp8 version of model, will have quality degradation and will not have speed up in inference time as it still uses bf16 matmuls, but can be paired with cpu_offload=True, to run model with 24Gb of GPU vram
 
 # Input Configuration
 text_prompt: "/path/to/csv" or "your prompt here"          # Text prompt OR path to CSV/TSV file with prompts
@@ -205,6 +209,12 @@ OR
 
 # To enable an additional image generation model to generate first frames for I2V, cpu_offload is automatically enabled if image generation model is enabled
 python3 gradio_app.py --use_image_gen
+
+OR
+
+# To run model with 24Gb GPU vram
+python3 gradio_app.py --cpu_offload --fp8
+
 ```
 ---
 
