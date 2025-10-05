@@ -38,6 +38,7 @@ Ovi is a veo-3 like, **video+audio generation model** that simultaneously genera
   - [x] Text or Text+Image as input
   - [x] Gradio application code
   - [x] Multi-GPU inference with or without the support of sequence parallel
+  - [x] fp8 weights and improved memory efficiency (credits to [@rkfg](https://github.com/rkfg))
   - [ ] Improve efficiency of Sequence Parallel implementation
   - [ ] Implement Sharded inference with FSDP
 - [x] Video creation example prompts and format
@@ -179,7 +180,7 @@ torchrun --nnodes 1 --nproc_per_node 8 inference.py --config-file ovi/configs/in
 
 ### Memory & Performance Requirements
 Below are approximate GPU memory requirements for different configurations. Sequence parallel implementation will be optimized in the future.
-All End-to-End time calculated based on a 121 frame, 720x720 video, using 50 denoising steps. Minimum GPU vram requirement to run our model is **32Gb**
+All End-to-End time calculated based on a 121 frame, 720x720 video, using 50 denoising steps. Minimum GPU vram requirement to run our model is **32Gb**, fp8 parameters is currently supported, reducing peak VRAM usage to **24Gb** with slight quality degradation.
 
 | Sequence Parallel Size | FlashAttention-3 Enabled | CPU Offload | With Image Gen Model | Peak VRAM Required | End-to-End Time |
 |-------------------------|---------------------------|-------------|-----------------------|---------------|-----------------|
@@ -190,7 +191,6 @@ All End-to-End time calculated based on a 121 frame, 720x720 video, using 50 den
 | **1**                       | **Yes**                        | **Yes**          | **Yes**                    | **~32 GB**        | **~140s**         |
 | 4                       | Yes                        | No          | No                    | ~80 GB        | ~55s         |
 | 8                       | Yes                        | No          | No                    | ~80 GB        | ~40s         |
-
 ### Gradio
 We provide a simple script to run our model in a gradio UI. It uses the `ckpt_dir` in `ovi/configs/inference/inference_fusion.yaml` to initialize the model
 ```bash
@@ -223,6 +223,22 @@ We welcome all types of collaboration! Whether you have feedback, want to contri
 
 **Contact**: [Weimin Wang](https://linkedin.com/in/weimin-wang-will) for any issues or feedback.
 
+
+## 🤝 Contributors
+
+We thank all contributors who have helped improve Ovi!
+
+<div align="center">
+  <a href="https://github.com/character-ai/Ovi/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=character-ai/Ovi" />
+  </a>
+</div>
+
+<br>
+
+If you’ve contributed to this repository (code, documentation, issues, etc.), you’re automatically included in the [contributors list](https://github.com/character-ai/Ovi/graphs/contributors).  
+
+We deeply appreciate your support in advancing open multimodal generation research!
 ---
 
 ## ⭐ Citation
