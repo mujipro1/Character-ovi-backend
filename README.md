@@ -115,7 +115,8 @@ cd ../..  # Return to Ovi directory
 ```
 
 ## Download Weights
-We use open-sourced checkpoints from Wan and MMAudio, and thus we will need to download them from huggingface
+To download our main Ovi checkpoint, as well as T5 and vae decoder from Wan, and audio vae from MMAudio
+
 ```
 # Default is downloaded to ./ckpts, and the inference yaml is set to ./ckpts so no change required
 python3 download_weights.py
