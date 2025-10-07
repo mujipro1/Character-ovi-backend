@@ -29,6 +29,7 @@ Ovi is a veo-3 like, **video+audio generation model** that simultaneously genera
 - **⏱️ 5-second Videos**: Generates 5-second videos at 24 FPS, area of 720×720, at various aspect ratios (9:16, 16:9, 1:1, etc)
 - **🎬 Create videos now on wavespeed.ai**: https://wavespeed.ai/models/character-ai/ovi/image-to-video & https://wavespeed.ai/models/character-ai/ovi/text-to-video
 - **🎬 Create videos now on HuggingFace**: https://huggingface.co/spaces/akhaliq/Ovi
+- **🔧 ComfyUI Integration (WIP)**: ComfyUI support is now available via [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper/pull/1361). Current version is functional but speed and memory usage are not yet fully optimized (will be soon! ).
 
 ---
 ## 📋 Todo List
