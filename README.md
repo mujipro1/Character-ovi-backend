@@ -44,8 +44,8 @@ Ovi is a veo-3 like, **video+audio generation model** that simultaneously genera
   - [ ] Improve efficiency of Sequence Parallel implementation
   - [ ] Implement Sharded inference with FSDP
 - [x] Video creation example prompts and format
-- [ ] Finetuned model with higher resolution
-- [ ] Longer video generation
+- [ ] Finetuned model with higher resolution, and RL for performance improvement. 
+- [ ] New features, such as longer video generation, reference voice condition
 - [ ] Distilled model for faster inference
 - [ ] Training scripts
 
