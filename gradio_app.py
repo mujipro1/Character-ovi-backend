@@ -26,6 +26,15 @@ parser.add_argument(
     action="store_true",
     help="Enable 8 bit quantization of the fusion model",
 )
+parser.add_argument(
+    "--qint8",
+    action="store_true",
+    help="Enable 8 bit quantization of the fusion model. No need to download additional models.",
+)
+parser.add_argument("--server_name", type=str, default="127.0.0.1", help="IP address, LAN access changed to 0.0.0.0")
+parser.add_argument("--server_port", type=int, default=7891, help="Use port")
+parser.add_argument("--share", action="store_true", help="Enable gradio sharing")
+parser.add_argument("--mcp_server", action="store_true", help="Enable MCP service")
 args = parser.parse_args()
 
 
@@ -33,15 +42,17 @@ args = parser.parse_args()
 enable_cpu_offload = args.cpu_offload or args.use_image_gen
 use_image_gen = args.use_image_gen
 fp8 = args.fp8
-print(f"loading model... {enable_cpu_offload=}, {use_image_gen=}, {fp8=} for gradio demo")
+qint8 = args.qint8
+print(f"loading model... {enable_cpu_offload=}, {use_image_gen=}, {fp8=}, {qint8=} for gradio demo")
 DEFAULT_CONFIG["cpu_offload"] = (
     enable_cpu_offload  # always use cpu offload if image generation is enabled
 )
 DEFAULT_CONFIG["mode"] = "t2v"  # hardcoded since it is always cpu offloaded
 DEFAULT_CONFIG["fp8"] = fp8
+DEFAULT_CONFIG["qint8"] = qint8
 ovi_engine = OviFusionEngine()
 flux_model = None
-if fp8:
+if fp8 or qint8:
     assert not use_image_gen, "Image generation with FluxPipeline is not supported with fp8 quantization. This is because if you are unable to run the bf16 model, you likely cannot run image gen model"
     
 if use_image_gen:
@@ -202,4 +213,11 @@ with gr.Blocks() as demo:
     )
 
 if __name__ == "__main__":
-    demo.launch(share=True)
+    demo.launch(
+        server_name=args.server_name, 
+        server_port=args.server_port,
+        share=args.share, 
+        mcp_server=args.mcp_server,
+        inbrowser=True,
+    )
+
