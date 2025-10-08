@@ -19,6 +19,8 @@ import traceback
 from omegaconf import OmegaConf
 from ovi.utils.processing_utils import clean_text, preprocess_image_tensor, snap_hw_to_multiple_of_32, scale_hw_to_area_divisible
 
+from optimum.quanto import freeze, qint8, quantize
+
 DEFAULT_CONFIG = OmegaConf.load('ovi/configs/inference/inference_fusion.yaml')
 
 class OviFusionEngine:
@@ -34,6 +36,7 @@ class OviFusionEngine:
         model, video_config, audio_config = init_fusion_score_model_ovi(rank=device, meta_init=meta_init)
 
         fp8 = config.get("fp8", False)
+        int8 = config.get("qint8", False)
         if fp8:
             assert not config.get("mode") == "t2i2v", "Image generation with FluxPipeline is not supported with fp8 quantization. This is because if you are unable to run the bf16 model, you likely cannot run image gen model"
 
@@ -81,6 +84,9 @@ class OviFusionEngine:
             model = model.to(device=device if not self.cpu_offload else "cpu").eval()
             model.set_rope_params()
         self.model = model
+        if int8:
+            quantize(self.model, qint8)
+            freeze(self.model)
 
         ## Load t2i as part of pipeline
         self.image_model = None

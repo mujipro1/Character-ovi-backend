@@ -97,7 +97,7 @@ virtualenv ovi-env
 source ovi-env/bin/activate
 
 # Install PyTorch first
-pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1
+pip install torch==2.7.0 torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu128
 
 # Install other dependencies
 pip install -r requirements.txt
@@ -121,6 +121,7 @@ To download our main Ovi checkpoint, as well as T5 and vae decoder from Wan, and
 ```
 # Default is downloaded to ./ckpts, and the inference yaml is set to ./ckpts so no change required
 python3 download_weights.py
+# For qint8 also ues python3 download_weights.py
 
 OR
 
@@ -214,6 +215,9 @@ OR
 python3 gradio_app.py --use_image_gen
 
 OR
+
+# To run model with 24Gb GPU vram. No need to download additional models.
+python3 gradio_app.py --cpu_offload --qint8
 
 # To run model with 24Gb GPU vram
 python3 gradio_app.py --cpu_offload --fp8
