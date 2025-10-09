@@ -30,9 +30,12 @@ Ovi is a veo-3 like, **video+audio generation model** that simultaneously genera
   - **🎯 High-Resolution Support**: Feel free to try 960×960 area (e.g., 720×1280, 704×1344, etc) - it could give outstanding results for both t2v and i2v! See examples below: 
 - **🎬 Create videos now on wavespeed.ai**: https://wavespeed.ai/models/character-ai/ovi/image-to-video & https://wavespeed.ai/models/character-ai/ovi/text-to-video
 - **🎬 Create videos now on HuggingFace**: https://huggingface.co/spaces/akhaliq/Ovi
-- **🔧 ComfyUI Integration (WIP)**: ComfyUI support is now available via [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper/tree/ovi), relateed [PR](https://github.com/kijai/ComfyUI-WanVideoWrapper/issues/1343#issuecomment-3382969479).
+- **🔧 ComfyUI Integration (WIP)**: ComfyUI support is now available via [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper/tree/ovi), related [PR](https://github.com/kijai/ComfyUI-WanVideoWrapper/issues/1343#issuecomment-3382969479).
 
-### 🎯 High-Resolution Examples (1280 × 704, 1504 × 608, 1344 × 704, etc)
+### 🎯 Higher-Resolution Examples (1280×704, 1504×608, 1344×704, etc)
+
+- 🧠 **Training Resolution:** Our model was trained entirely under **720×720** resolution.
+- 🚀 **Upscaling Capability:** Despite this, Ovi can **generate naturally** to higher resolutions such as **960×960** and variable-aspect videos (e.g., 1280×704, 1504×608, 1344×704) while maintaining temporal and spatial consistency.
 
 <div align="center"><table><tr>
 <td width="20%">
@@ -58,17 +61,18 @@ Ovi is a veo-3 like, **video+audio generation model** that simultaneously genera
 ---
 ## 📋 Todo List
 
-- [x] Release research paper and [microsite for demos](https://aaxwaz.github.io/Ovi)
+- [x] Release research paper and [website for demos](https://aaxwaz.github.io/Ovi)
 - [x] Checkpoint of 11B model
 - [x] Inference Codes
   - [x] Text or Text+Image as input
   - [x] Gradio application code
   - [x] Multi-GPU inference with or without the support of sequence parallel
   - [x] fp8 weights and improved memory efficiency (credits to [@rkfg](https://github.com/rkfg))
+  - [x] qint8 quantization thanks to [@gluttony-10](https://github.com/character-ai/Ovi/commits?author=gluttony-10)
   - [ ] Improve efficiency of Sequence Parallel implementation
   - [ ] Implement Sharded inference with FSDP
 - [x] Video creation example prompts and format
-- [ ] Finetuned model with higher resolution (960x960), and RL for performance improvement. 
+- [ ] Finetune model with higher resolution data, and RL for performance improvement. 
 - [ ] New features, such as longer video generation, reference voice condition
 - [ ] Distilled model for faster inference
 - [ ] Training scripts
@@ -254,7 +258,7 @@ python3 gradio_app.py --cpu_offload --fp8
 We would like to thank the following projects:
 
 - **[Wan2.2](https://github.com/Wan-Video/Wan2.2)**: Our video branch is initialized from the Wan2.2 repository
-- **[MMAudio](https://github.com/hkchengrex/MMAudio)**: Our audio encoder and decoder components are borrowed from the MMAudio project. Some ideas are also inspired from them. 
+- **[MMAudio](https://github.com/hkchengrex/MMAudio)**: We reused MMAudio's audio vae. 
 
 ---
 
@@ -264,23 +268,6 @@ We welcome all types of collaboration! Whether you have feedback, want to contri
 
 **Contact**: [Weimin Wang](https://linkedin.com/in/weimin-wang-will) for any issues or feedback.
 
-
-## 🤝 Contributors
-
-We thank all contributors who have helped improve Ovi!
-
-<div align="center">
-  <a href="https://github.com/character-ai/Ovi/graphs/contributors">
-    <img src="https://contrib.rocks/image?repo=character-ai/Ovi" />
-  </a>
-</div>
-
-<br>
-
-If you’ve contributed to this repository (code, documentation, issues, etc.), you’re automatically included in the [contributors list](https://github.com/character-ai/Ovi/graphs/contributors).  
-
-We deeply appreciate your support in advancing open multimodal generation research!
----
 
 ## ⭐ Citation
 
