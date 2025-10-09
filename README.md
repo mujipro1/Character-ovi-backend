@@ -32,27 +32,28 @@ Ovi is a veo-3 like, **video+audio generation model** that simultaneously genera
 - **🎬 Create videos now on HuggingFace**: https://huggingface.co/spaces/akhaliq/Ovi
 - **🔧 ComfyUI Integration (WIP)**: ComfyUI support is now available via [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper/tree/ovi), relateed [PR](https://github.com/kijai/ComfyUI-WanVideoWrapper/issues/1343#issuecomment-3382969479).
 
-### 🎯 High-Resolution Examples (1K resolution directly generated)
+### 🎯 High-Resolution Examples (1280 × 704, 1504 × 608, 1344 × 704, etc)
 
-<table>
-  <tr>
-    <td width="20%">
-      <video src="assets/high_res_results/A_kitchen_scene_features_two_women._On_the_right,__704x1280_103_1.mp4" width="100%" controls></video>
-    </td>
-    <td width="20%">
-      <video src="assets/high_res_results/A_man_in_a_red_long-sleeved_shirt_and_dark_trouser_704x1280_104_3.mp4" width="100%" controls></video>
-    </td>
-    <td width="20%">
-      <video src="assets/high_res_results/The_scene_opens_on_a_dimly_lit_stage_where_three_m_704x1280_103_6.mp4" width="100%" controls></video>
-    </td>
-    <td width="20%">
-      <video src="assets/high_res_results/Two_men_are_shown_in_a_medium_close-up_shot_agains_704x1280_104_0.mp4" width="100%" controls></video>
-    </td>
-    <td width="20%">
-      <video src="assets/high_res_results/Two_women_stand_facing_each_other_in_what_appears__704x1280_103_0.mp4" width="100%" controls></video>
-    </td>
-  </tr>
-</table>
+<div align="center"><table><tr>
+<td width="20%">
+<video src="https://github.com/user-attachments/assets/7c1dbbea-dfb7-44d7-a4a1-d70a2e00f51a" width="100%" controls playsinline preload="metadata"></video>
+</td>
+<td width="20%">
+<video src="https://github.com/user-attachments/assets/4e41d1b3-7d39-49a8-ab71-e910088f29ee" width="100%" controls playsinline preload="metadata"></video>
+</td>
+<td width="20%">
+<video src="https://github.com/user-attachments/assets/4ad3ad70-1fea-4a2d-9201-808f4746c55e" width="100%" controls playsinline preload="metadata"></video>
+</td>
+<td width="20%">
+<video src="https://github.com/user-attachments/assets/60792c08-12de-49c3-860f-12ac94730940" width="100%" controls playsinline preload="metadata"></video>
+</td>
+<td width="20%">
+<video src="https://github.com/user-attachments/assets/0f3a318b-ac74-43c4-81a5-503f06c65e99" width="100%" controls playsinline preload="metadata"></video>
+</td>
+</tr></table>
+<p>Click the ⛶ button on any video to view full screen.</p>
+</div>
+
 
 ---
 ## 📋 Todo List
