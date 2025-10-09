@@ -27,9 +27,32 @@ Ovi is a veo-3 like, **video+audio generation model** that simultaneously genera
   - **🎵 High-Quality Audio Branch**: We designed and pretrained our 5B audio branch from scratch using our high quality in-house audio datasets
 - **📝 Flexible Input**: Supports text-only or text+image conditioning
 - **⏱️ 5-second Videos**: Generates 5-second videos at 24 FPS, area of 720×720, at various aspect ratios (9:16, 16:9, 1:1, etc)
+  - **🎯 High-Resolution Support**: Feel free to try 960×960 area (e.g., 720×1280, 704×1344, etc) - it could give outstanding results! See examples below: 
 - **🎬 Create videos now on wavespeed.ai**: https://wavespeed.ai/models/character-ai/ovi/image-to-video & https://wavespeed.ai/models/character-ai/ovi/text-to-video
 - **🎬 Create videos now on HuggingFace**: https://huggingface.co/spaces/akhaliq/Ovi
 - **🔧 ComfyUI Integration (WIP)**: ComfyUI support is now available via [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper/tree/ovi), relateed [PR](https://github.com/kijai/ComfyUI-WanVideoWrapper/issues/1343#issuecomment-3382969479).
+
+### 🎯 High-Resolution Examples (1K resolution directly generated)
+
+<table>
+  <tr>
+    <td width="20%">
+      <video src="assets/high_res_results/A_kitchen_scene_features_two_women._On_the_right,__704x1280_103_1.mp4" width="100%" controls></video>
+    </td>
+    <td width="20%">
+      <video src="assets/high_res_results/A_man_in_a_red_long-sleeved_shirt_and_dark_trouser_704x1280_104_3.mp4" width="100%" controls></video>
+    </td>
+    <td width="20%">
+      <video src="assets/high_res_results/The_scene_opens_on_a_dimly_lit_stage_where_three_m_704x1280_103_6.mp4" width="100%" controls></video>
+    </td>
+    <td width="20%">
+      <video src="assets/high_res_results/Two_men_are_shown_in_a_medium_close-up_shot_agains_704x1280_104_0.mp4" width="100%" controls></video>
+    </td>
+    <td width="20%">
+      <video src="assets/high_res_results/Two_women_stand_facing_each_other_in_what_appears__704x1280_103_0.mp4" width="100%" controls></video>
+    </td>
+  </tr>
+</table>
 
 ---
 ## 📋 Todo List
@@ -44,7 +67,7 @@ Ovi is a veo-3 like, **video+audio generation model** that simultaneously genera
   - [ ] Improve efficiency of Sequence Parallel implementation
   - [ ] Implement Sharded inference with FSDP
 - [x] Video creation example prompts and format
-- [ ] Finetuned model with higher resolution, and RL for performance improvement. 
+- [ ] Finetuned model with higher resolution (960x960), and RL for performance improvement. 
 - [ ] New features, such as longer video generation, reference voice condition
 - [ ] Distilled model for faster inference
 - [ ] Training scripts
