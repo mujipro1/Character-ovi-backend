@@ -39,6 +39,12 @@ Ovi is a veo-3 like, **video+audio generation model** that simultaneously genera
 
 <div align="center"><table><tr>
 <td width="20%">
+<video src="https://github.com/user-attachments/assets/c6b35565-df00-4494-b38a-7dcae90f63e5" width="100%" controls playsinline preload="metadata"></video>
+</td>
+<td width="20%">
+<video src="https://github.com/user-attachments/assets/2ce6ff72-eadd-4cf4-b343-b465f0624571" width="100%" controls playsinline preload="metadata"></video>
+</td>
+<td width="20%">
 <video src="https://github.com/user-attachments/assets/7c1dbbea-dfb7-44d7-a4a1-d70a2e00f51a" width="100%" controls playsinline preload="metadata"></video>
 </td>
 <td width="20%">
