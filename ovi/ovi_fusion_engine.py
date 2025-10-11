@@ -164,7 +164,7 @@ class OviFusionEngine:
             else:   
                 assert video_frame_height_width is not None, f"If mode=t2v or t2i2v, video_frame_height_width must be provided."
                 video_h, video_w = video_frame_height_width
-                snap_area = max(video_latent_h * video_latent_w, 720 * 720)
+                snap_area = max(video_h * video_w, 720 * 720)
                 video_h, video_w = snap_hw_to_multiple_of_32(video_h, video_w, area = snap_area)
                 video_latent_h, video_latent_w = video_h // 16, video_w // 16
                 if self.image_model is not None:
