@@ -18,10 +18,35 @@ from ovi.utils.fm_solvers import (FlowDPMSolverMultistepScheduler,
 import traceback
 from omegaconf import OmegaConf
 from ovi.utils.processing_utils import clean_text, preprocess_image_tensor, snap_hw_to_multiple_of_32, scale_hw_to_area_divisible
-
+import re
 from optimum.quanto import freeze, qint8, quantize
 
 DEFAULT_CONFIG = OmegaConf.load('ovi/configs/inference/inference_fusion.yaml')
+
+NAME_TO_MODEL_SPECS_MAP = {
+    "720x720_5s": {
+        "path": "model.safetensors",
+        "video_latent_length": 31,
+        "audio_latent_length": 157,
+        "video_area": 720 * 720,
+        "formatter": lambda text: re.sub(r"Audio:\s*(.*)", r"<AUDCAP>\1<ENDAUDCAP>", text, flags=re.S)
+    },
+    "960x960_5s": {
+        "path": "model_960x960.safetensors",
+        "video_latent_length": 31,
+        "audio_latent_length": 157,
+        "video_area": 960 * 960,
+        "formatter": lambda text: re.sub(r"<AUDCAP>(.*?)<ENDAUDCAP>", r"Audio: \1", text, flags=re.S)
+    }, 
+    "960x960_10s": {
+        "path": "model_960x960_10s.safetensors",
+        "video_latent_length": 61,
+        "audio_latent_length": 314,
+        "video_area": 960 * 960,
+        "formatter": lambda text: re.sub(r"<AUDCAP>(.*?)<ENDAUDCAP>", r"Audio: \1", text, flags=re.S)
+    }
+}
+
 
 class OviFusionEngine:
     def __init__(self, config=DEFAULT_CONFIG, device=0, target_dtype=torch.bfloat16):
@@ -66,15 +91,23 @@ class OviFusionEngine:
             self.offload_to_cpu(self.text_model.model)
 
         # Find fusion ckpt in the same dir used by other components
+        model_name = config.get("model_name", "960x960_5s")
+        self.model_name = model_name
+        assert model_name in NAME_TO_MODEL_SPECS_MAP, f"Model name {model_name} not found in predefined model name to path map."
+        model_specs = NAME_TO_MODEL_SPECS_MAP[model_name]
+        basename = model_specs["path"]
+        if fp8:
+            assert model_name == "720x720_5s", "FP8 quantization is only supported for 720x720_5s model currently."
+            basename = "model_fp8_e4m3fn.safetensors"
+        
         checkpoint_path = os.path.join(
             config.ckpt_dir,
             "Ovi",
-            "model.safetensors" if not fp8 else "model_fp8_e4m3fn.safetensors",
+            basename,
         )
 
         if not os.path.exists(checkpoint_path):
-            raise RuntimeError(f"No fusion checkpoint found in {config.ckpt_dir}")
-
+            raise RuntimeError(f"REQUIRED fusion checkpoint not found in {config.ckpt_dir}, please download...")
 
         load_fusion_checkpoint(model, checkpoint_path=checkpoint_path, from_meta=meta_init)
 
@@ -99,8 +132,11 @@ class OviFusionEngine:
         # Fixed attributes, non-configurable
         self.audio_latent_channel = audio_config.get("in_dim")
         self.video_latent_channel = video_config.get("in_dim")
-        self.audio_latent_length = 157
-        self.video_latent_length = 31
+        self.video_latent_length = model_specs["video_latent_length"]
+        self.audio_latent_length = model_specs["audio_latent_length"]
+        self.text_formatter = model_specs["formatter"]
+        self.target_area = model_specs["video_area"]
+
 
         logging.info(f"OVI Fusion Engine initialized, cpu_offload={self.cpu_offload}. GPU VRAM allocated: {torch.cuda.memory_allocated(device)/1e9:.2f} GB, reserved: {torch.cuda.memory_reserved(device)/1e9:.2f} GB")
 
@@ -158,14 +194,27 @@ class OviFusionEngine:
 
             first_frame = None
             image = None
+
+            # text and image checks
+            formatted_text_prompt = self.text_formatter(text_prompt)
+            if formatted_text_prompt != text_prompt:
+                logging.info(f"Wrong audio description format detected! Please use <AUDCAP>...<ENDAUDCAP> tags for 720x720_5s model and Audio: ... for 960x960 models.\n \
+                             Original prompt: {text_prompt}\nFormatted prompt: {formatted_text_prompt}")
+                text_prompt = formatted_text_prompt
+
             if is_i2v and not self.image_model:
                 # Load first frame from path
-                first_frame = preprocess_image_tensor(image_path, self.device, self.target_dtype)
-            else:   
+                first_frame = preprocess_image_tensor(image_path, self.device, self.target_dtype, resize_total_area=self.target_area)
+            else:
                 assert video_frame_height_width is not None, f"If mode=t2v or t2i2v, video_frame_height_width must be provided."
+
+                # input resolution should be at least 0.9x of video area of model spec
+                input_area = video_frame_height_width[0] * video_frame_height_width[1]
+                if input_area < 0.9 * self.target_area or input_area > 1.1 * self.target_area:
+                    logging.warning(f"[Detected model: {self.model_name}] Input video frame area {input_area} is more than 10\% smaller or larger than model's target area {self.target_area}. This may lead to suboptimal results, please refer to readme for best resolutions or use the right model. DEFAULTING TO MODEL'S TARGET AREA while preserving given aspect ratio.")
+
                 video_h, video_w = video_frame_height_width
-                snap_area = max(video_h * video_w, 720 * 720)
-                video_h, video_w = snap_hw_to_multiple_of_32(video_h, video_w, area = snap_area)
+                video_h, video_w = snap_hw_to_multiple_of_32(video_h, video_w, area = self.target_area)
                 video_latent_h, video_latent_w = video_h // 16, video_w // 16
                 if self.image_model is not None:
                     # this already means t2v mode with image model
@@ -177,7 +226,7 @@ class OviFusionEngine:
                         guidance_scale=4.5,
                         generator=torch.Generator().manual_seed(seed)
                     ).images[0]
-                    first_frame = preprocess_image_tensor(image, self.device, self.target_dtype)
+                    first_frame = preprocess_image_tensor(image, self.device, self.target_dtype, resize_total_area=self.target_area)
                     is_i2v = True
                 else:
                     print(f"Pure T2V mode: calculated video latent size: {video_latent_h} x {video_latent_w}")

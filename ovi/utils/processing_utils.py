@@ -290,13 +290,16 @@ def audio_path_to_tensor(path, target_sr=16000):
 def clean_text(text: str) -> str:
     """
     Remove all text between <S>...</E> and <AUDCAP>...</ENDAUDCAP> tags,
-    including the tags themselves.
+    as well as any 'Audio: ...' lines. Also trims excess whitespace.
     """
-    # Remove <S> ... <E>
+    # Remove <S> ... <E> dialogue tags
     text = re.sub(r"<S>.*?<E>", "", text, flags=re.DOTALL)
 
-    # Remove <AUDCAP> ... <ENDAUDCAP>
+    # Remove <AUDCAP> ... <ENDAUDCAP> audio caption tags
     text = re.sub(r"<AUDCAP>.*?<ENDAUDCAP>", "", text, flags=re.DOTALL)
 
-    # Strip extra whitespace
+    # Remove 'Audio: ...' lines (including multiline ones)
+    text = re.sub(r"Audio:\s*.*", "", text, flags=re.DOTALL)
+
+    # Strip leading/trailing whitespace
     return text.strip()
