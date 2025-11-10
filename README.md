@@ -14,7 +14,7 @@
 
 ## 🎥 Video Demo
 
-### 🆕 Ovi 1.1 10-Second Model
+### 🆕 Ovi 1.1 10-Second Demo
 <div align="center">
   <video src="https://github.com/user-attachments/assets/191f51fb-ef5a-4197-b26f-a5369dc2c007"
          width="70%" controls playsinline preload="metadata"></video>
@@ -30,12 +30,12 @@
 
 ## 🌟 Key Features
 
-> 🆕 **Ovi 1.1 (coming in 2 days):**  
-> The new Ovi 1.1 checkpoint enables **temporal-consistent 10-second video generation at 960 × 960 resolution**.  
+> 🆕 **\[10 November 2025 Update\] Ovi 1.1 (coming in 1 day):**
+> The new Ovi 1.1 checkpoint enables **temporal-consistent 10-second video generation at 960 × 960 resolution**.
+> Ovi 1.1 was trained natively on 960x960 resolution videos, with a dataset consisting of 100% more videos, covering a wider diversity
+> Ovi 1.1 adopts a more user-friendly prompt format, audio descriptions should be provided as `Audio: ...`, instead of `<AUDCAP>...<ENDAUDCAP>`
 
 Ovi is a veo-3-like, **video + audio generation model** that simultaneously generates both video and audio content from text or text + image inputs.
-
-
 - **🎬 Video+Audio Generation**: Generate synchronized video and audio content simultaneously
   - **🎵 High-Quality Audio Branch**: We designed and pretrained our 5B audio branch from scratch using our high quality in-house audio datasets
 - **📝 Flexible Input**: Supports text-only or text+image conditioning
@@ -43,7 +43,7 @@ Ovi is a veo-3-like, **video + audio generation model** that simultaneously gene
   - **🎯 High-Resolution Support**: Feel free to try 960×960 area (e.g., 720×1280, 704×1344, etc) - it could give outstanding results for both t2v and i2v! See examples below: 
 - **🎬 Create videos now on wavespeed.ai**: https://wavespeed.ai/models/character-ai/ovi/image-to-video & https://wavespeed.ai/models/character-ai/ovi/text-to-video
 - **🎬 Create videos now on HuggingFace**: https://huggingface.co/spaces/akhaliq/Ovi
-- **🔧 ComfyUI Integration (WIP)**: ComfyUI support is now available via [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper/tree/ovi), related [PR](https://github.com/kijai/ComfyUI-WanVideoWrapper/issues/1343#issuecomment-3382969479).
+- **🔧 ComfyUI Integration**: ComfyUI support is now available via [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper), related [PR](https://github.com/kijai/ComfyUI-WanVideoWrapper/issues/1343#issuecomment-3382969479).
 
 ### 🎯 Higher-Resolution Examples (1280×704, 1504×608, 1344×704, etc)
 
@@ -91,8 +91,9 @@ Ovi is a veo-3-like, **video + audio generation model** that simultaneously gene
   - [ ] Improve efficiency of Sequence Parallel implementation
   - [ ] Implement Sharded inference with FSDP
 - [x] Video creation example prompts and format
-- [ ] Finetune model with higher resolution data, and RL for performance improvement. 
-- [ ] New features, such as longer video generation, reference voice condition
+- [x] Finetune model with higher resolution data, and RL for performance improvement. 
+- [x] Longer video generation (10s)
+- [ ] Reference voice condition
 - [ ] Distilled model for faster inference
 - [ ] Training scripts
 
@@ -101,16 +102,17 @@ Ovi is a veo-3-like, **video + audio generation model** that simultaneously gene
 ## 🎨 An Easy Way to Create
 
 We provide example prompts to help you get started with Ovi:
-
+- **Text-to-Audio-Video (T2AV) 10s**: [`example_prompts/gpt_examples_t2v.csv`](example_prompts/gpt_examples_10s_t2v.csv)
+- **Image-to-Audio-Video (I2AV) 10s**: [`example_prompts/gpt_examples_i2v.csv`](example_prompts/gpt_examples_10s_i2v.csv)
 - **Text-to-Audio-Video (T2AV)**: [`example_prompts/gpt_examples_t2v.csv`](example_prompts/gpt_examples_t2v.csv)
 - **Image-to-Audio-Video (I2AV)**: [`example_prompts/gpt_examples_i2v.csv`](example_prompts/gpt_examples_i2v.csv)
 
 ### 📝 Prompt Format
 
 Our prompts use special tags to control speech and audio:
-
 - **Speech**: `<S>Your speech content here<E>` - Text enclosed in these tags will be converted to speech
-- **Audio Description**: `<AUDCAP>Audio description here<ENDAUDCAP>` - Describes the audio or sound effects present in the video
+- **Audio Description (old model, 720x720_5s)**: `<AUDCAP>Audio description here<ENDAUDCAP>` - Describes the audio or sound effects present in the video
+- **Audio Description (latest model, 960x960_5s/960x960_10s)**: `<AUDCAP>Audio description here<ENDAUDCAP>` - Describes the audio or sound effects present in the video
 
 ### 🤖 Quick Start with GPT
 
@@ -189,11 +191,12 @@ The following parameters control generation quality, video resolution, and how t
 
 ```yaml
 # Output and Model Configuration
+model_name: "960x960_10s" # ["720x720_5s", "960x960_5s", "960x960_10s"]
 output_dir: "/path/to/save/your/videos"                    # Directory to save generated videos
 ckpt_dir: "/path/to/your/ckpts/dir"                        # Path to model checkpoints
 
 # Generation Quality Settings
-num_steps: 50                             # Number of denoising steps. Lower (30-40) = faster generation
+sample_steps: 50                             # Number of denoising steps. Lower (30-40) = faster generation
 solver_name: "unipc"                     # Sampling algorithm for denoising process
 shift: 5.0                               # Timestep shift factor for sampling scheduler
 seed: 100                                # Random seed for reproducible results
@@ -211,7 +214,7 @@ fp8: False                               # load fp8 version of model, will have 
 # Input Configuration
 text_prompt: "/path/to/csv" or "your prompt here"          # Text prompt OR path to CSV/TSV file with prompts
 mode: ['i2v', 't2v', 't2i2v']                          # Generate t2v, i2v or t2i2v; if t2i2v, it will use flux krea to generate starting image and then will follow with i2v
-video_frame_height_width: [512, 992]    # Video dimensions [height, width] for T2V mode only
+video_frame_height_width: [704, 1280]    # Video dimensions [height, width] for T2V mode only
 each_example_n_times: 1                  # Number of times to generate each prompt
 
 # Quality Control (Negative Prompts)
