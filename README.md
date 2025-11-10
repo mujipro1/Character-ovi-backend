@@ -28,13 +28,25 @@
 
 ---
 
+# 🆕 Ovi 1.1 Update (10 November 2025)
+
+- **Release Date:** Coming in 1 day  
+- **Key Feature:** Enables *temporal-consistent 10-second video generation* at **960 × 960 resolution**  
+- **Training Improvements:**  
+  - Trained natively on 960×960 resolution videos  
+  - Dataset includes **100% more videos** for greater diversity
+  - 
+- **Prompt Format Update:**  
+  - Audio descriptions should now be written as  
+    ```
+    Audio: ...
+    ```  
+    instead of using  
+    ```
+    <AUDCAP> ... <ENDAUDCAP>
+    ```
+
 ## 🌟 Key Features
-
-> 🆕 **\[10 November 2025 Update\] Ovi 1.1 (coming in 1 day):**
-> The new Ovi 1.1 checkpoint enables **temporal-consistent 10-second video generation at 960 × 960 resolution**.
-> Ovi 1.1 was trained natively on 960x960 resolution videos, with a dataset consisting of 100% more videos, covering a wider diversity
-> Ovi 1.1 adopts a more user-friendly prompt format, audio descriptions should be provided as `Audio: ...`, instead of `<AUDCAP>...<ENDAUDCAP>`
-
 Ovi is a veo-3-like, **video + audio generation model** that simultaneously generates both video and audio content from text or text + image inputs.
 - **🎬 Video+Audio Generation**: Generate synchronized video and audio content simultaneously
   - **🎵 High-Quality Audio Branch**: We designed and pretrained our 5B audio branch from scratch using our high quality in-house audio datasets
