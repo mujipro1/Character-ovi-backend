@@ -16,7 +16,7 @@
 
 ### 🆕 Ovi 1.1 10-Second Model
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/1070283f-e9f5-4e14-8660-d1e58b3251dc"
+  <video src="https://github.com/user-attachments/assets/191f51fb-ef5a-4197-b26f-a5369dc2c007"
          width="70%" controls playsinline preload="metadata"></video>
   <p><em>Ovi 1.1 – 10-second temporally consistent video generation (960 × 960 resolution)</em></p>
 </div>
