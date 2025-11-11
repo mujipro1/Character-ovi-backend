@@ -51,16 +51,37 @@ Ovi is a veo-3-like, **video + audio generation model** that simultaneously gene
 - **🎬 Video+Audio Generation**: Generate synchronized video and audio content simultaneously
   - **🎵 High-Quality Audio Branch**: We designed and pretrained our 5B audio branch from scratch using our high quality in-house audio datasets
 - **📝 Flexible Input**: Supports text-only or text+image conditioning
-- **⏱️ 5-second Videos**: Generates 5-second videos at 24 FPS, area of 720×720, at various aspect ratios (9:16, 16:9, 1:1, etc)
-  - **🎯 High-Resolution Support**: Feel free to try 960×960 area (e.g., 720×1280, 704×1344, etc) - it could give outstanding results for both t2v and i2v! See examples below: 
+- **⏱️ 10-second (or 5-second) Videos**: Generates 10-second or 5-second videos at 24 FPS, resolution of 960x960p, at various aspect ratios (9:16, 16:9, 1:1, etc)
+- **🔧 ComfyUI Integration**: ComfyUI support is now available via [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper), related [PR](https://github.com/kijai/ComfyUI-WanVideoWrapper/issues/1343#issuecomment-3382969479).
 - **🎬 Create videos now on wavespeed.ai**: https://wavespeed.ai/models/character-ai/ovi/image-to-video & https://wavespeed.ai/models/character-ai/ovi/text-to-video
 - **🎬 Create videos now on HuggingFace**: https://huggingface.co/spaces/akhaliq/Ovi
-- **🔧 ComfyUI Integration**: ComfyUI support is now available via [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper), related [PR](https://github.com/kijai/ComfyUI-WanVideoWrapper/issues/1343#issuecomment-3382969479).
 
-### 🎯 Higher-Resolution Examples (1280×704, 1504×608, 1344×704, etc)
+### 🎯 10-second examples
 
-- 🧠 **Training Resolution:** Our model was trained entirely under **720×720** resolution.
-- 🚀 **Upscaling Capability:** Despite this, Ovi can **generate naturally** to higher resolutions such as **960×960** and variable-aspect videos (e.g., 1280×704, 1504×608, 1344×704) while maintaining temporal and spatial consistency.
+<div align="center"><table><tr>
+<td width="20%">
+<video src="https://github.com/user-attachments/assets/c7e75ef8-adf9-4612-a279-56e4cf7ce146" width="100%" controls playsinline preload="metadata"></video>
+</td>
+<td width="20%">
+<video src="https://github.com/user-attachments/assets/025f5936-883e-4851-bf35-1a809769ba97" width="100%" controls playsinline preload="metadata"></video>
+</td>
+<td width="20%">
+<video src="https://github.com/user-attachments/assets/9e5bf0df-74d6-4e04-a7d0-e5b64616afa9" width="100%" controls playsinline preload="metadata"></video>
+</td>
+<td width="20%">
+<video src="https://github.com/user-attachments/assets/499cefde-c5f8-4afc-b77a-6cd9293b8ac6" width="100%" controls playsinline preload="metadata"></video>
+</td>
+<td width="20%">
+<video src="https://github.com/user-attachments/assets/73390370-afa7-4604-97b6-80995b615d43" width="100%" controls playsinline preload="metadata"></video>
+</td>
+<td width="20%">
+<video src="https://github.com/user-attachments/assets/e11c6f2d-6098-41bb-9bca-a99796a58424" width="100%" controls playsinline preload="metadata"></video>
+</td>
+</tr></table>
+<p>Click the ⛶ button on any video to view full screen.</p>
+</div>
+
+### 🎯 5-second examples
 
 <div align="center"><table><tr>
 <td width="20%">
