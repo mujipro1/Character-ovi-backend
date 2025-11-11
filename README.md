@@ -181,6 +181,7 @@ To download our main Ovi checkpoint, as well as T5 and vae decoder from Wan, and
 
 ```
 # Default is downloaded to ./ckpts, and the inference yaml is set to ./ckpts so no change required
+# Default installs all versions of Ovi models, 720x720_5s, 960x960_5s, 960x960_10s
 python3 download_weights.py
 # For qint8 also ues python3 download_weights.py
 
@@ -189,6 +190,10 @@ OR
 # Optional can specific --output-dir to download to a specific directory
 # but if a custom directory is used, the inference yaml has to be updated with the custom directory
 python3 download_weights.py --output-dir <custom_dir>
+
+# Optional can specific --models to download selective versions of Ovi instead of all of them
+# but if a custom directory is used, the inference yaml has to be updated with the custom directory
+python3 download_weights.py --models 960x960_10s # ["720x720_5s", "960x960_5s", "960x960_10s"]
 
 # Additionally, if you only have ~ 24Gb of GPU vram, please download the fp8 quantized version of the model, and follow the following instructions in sections below to run with fp8
 wget -O "./ckpts/Ovi/model_fp8_e4m3fn.safetensors" "https://huggingface.co/rkfg/Ovi-fp8_quantized/resolve/main/model_fp8_e4m3fn.safetensors"
