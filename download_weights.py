@@ -4,6 +4,13 @@ import logging
 import time
 from huggingface_hub import snapshot_download
 
+
+NAME_TO_MODELS_MAP = {
+    "720x720_5s": "model.safetensors",
+    "960x960_5s": "model_960x960.safetensors",
+    "960x960_10s": "model_960x960_10s.safetensors"
+}
+
 # Setup logging
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -53,12 +60,14 @@ def main(output_dir: str):
     )
 
     ovi_dir = os.path.join(output_dir, "Ovi")
+    assert all(m in NAME_TO_MODELS_MAP for m in args.models), f"Invalid model names {args.models}. Valid options are: {list(NAME_TO_MODELS_MAP.keys())}"
+
+    models = [NAME_TO_MODELS_MAP[m] for m in args.models]
+    
     timed_download(
         repo_id="chetwinlow1/Ovi",
         local_dir=ovi_dir,
-        allow_patterns=[
-            "model.safetensors"
-        ]
+        allow_patterns=models
     )
 
 if __name__ == "__main__":
@@ -68,6 +77,12 @@ if __name__ == "__main__":
         type=str,
         default="./ckpts",
         help="Base directory to save downloaded models"
+    )
+    parser.add_argument(
+        "--models",
+        type=str,
+        nargs="+",
+        default=["720x720_5s", "960x960_5s", "960x960_10s"],
     )
     args = parser.parse_args()
     main(args.output_dir)
