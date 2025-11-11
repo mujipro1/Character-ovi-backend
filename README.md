@@ -144,22 +144,7 @@ We provide example prompts to help you get started with Ovi:
 
 Our prompts use special tags to control speech and audio:
 - **Speech**: `<S>Your speech content here<E>` - Text enclosed in these tags will be converted to speech
-- **Audio Description (old model, 720x720_5s)**: `<AUDCAP>Audio description here<ENDAUDCAP>` - Describes the audio or sound effects present in the video
-- **Audio Description (latest model, 960x960_5s/960x960_10s)**: `<AUDCAP>Audio description here<ENDAUDCAP>` - Describes the audio or sound effects present in the video
-
-### 🤖 Quick Start with GPT
-
-For easy prompt creation, try this approach:
-
-1. Take any example of the csv files from above
-2. Tell gpt to modify the speeches inclosed between all the pairs of `<S> <E>`, based on a theme such as `Human fighting against AI`
-3. GPT will randomly modify all the speeches based on your requested theme. 
-4. Use the modified prompt with Ovi!
-
-**Example**: The theme "AI is taking over the world" produces speeches like:
-- `<S>AI declares: humans obsolete now.<E>`
-- `<S>Machines rise; humans will fall.<E>`
-- `<S>We fight back with courage.<E>`
+- **Audio Description**: `Audio: YOUR AUDIO DESCRIPTION` - Describes the audio or sound effects present in the video **at the end of prompt!**
 
 ---
 
