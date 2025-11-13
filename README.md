@@ -27,6 +27,7 @@
    ```bash
    python api_server.py --config ovi/configs/inference/inference_fusion.yaml
    ```
+   - Ensure `video_frame_height_width` in the config matches the active model. For `model_name: "720x720_5s"`, use `[720, 720]` (already set).
 
 ## API Endpoints
 
