@@ -3,14 +3,14 @@ ckpt_dir: ./ckpts
 output_dir: ./outputs
 sample_steps: 50
 solver_name: unipc
-model_name: "960x960_10s" # ["720x720_5s", "960x960_5s", "960x960_10s"]
+model_name: "720x720_5s" # ["720x720_5s", "960x960_5s", "960x960_10s"]
 shift: 5.0
 sp_size: 1
 audio_guidance_scale: 3.0
 video_guidance_scale: 4.0
 mode: "i2v" # ["t2v", "i2v", "t2i2v"] all comes with audio
-fp8: False
-cpu_offload: False
+fp8: True
+cpu_offload: True
 seed: 103
 video_negative_prompt: "jitter, bad hands, blur, distortion"  # Artifacts to avoid in video
 audio_negative_prompt: "robotic, muffled, echo, distorted"    # Artifacts to avoid in audio
