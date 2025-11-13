@@ -135,10 +135,10 @@ Ovi is a veo-3-like, **video + audio generation model** that simultaneously gene
 ## 🎨 An Easy Way to Create
 
 We provide example prompts to help you get started with Ovi:
-- **Text-to-Audio-Video (T2AV) 10s**: [`example_prompts/gpt_examples_t2v.csv`](example_prompts/gpt_examples_10s_t2v.csv)
-- **Image-to-Audio-Video (I2AV) 10s**: [`example_prompts/gpt_examples_i2v.csv`](example_prompts/gpt_examples_10s_i2v.csv)
-- **Text-to-Audio-Video (T2AV)**: [`example_prompts/gpt_examples_t2v.csv`](example_prompts/gpt_examples_t2v.csv)
-- **Image-to-Audio-Video (I2AV)**: [`example_prompts/gpt_examples_i2v.csv`](example_prompts/gpt_examples_i2v.csv)
+- **Text-to-Audio-Video (T2AV) 10s**: Provide your own CSV of prompts (former examples have been removed).
+- **Image-to-Audio-Video (I2AV) 10s**: Provide your own CSV of prompts (former examples have been removed).
+- **Text-to-Audio-Video (T2AV)**: Provide your own CSV of prompts (former examples have been removed).
+- **Image-to-Audio-Video (I2AV)**: Provide your own CSV of prompts (former examples have been removed).
 
 ### 📝 Prompt Format
 
