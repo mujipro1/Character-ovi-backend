@@ -27,6 +27,9 @@ IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".webp"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
 DEFAULT_FPS = 24
 DEFAULT_SAMPLE_RATE = 16000
+INPAINT_FALLBACK_INSTRUCTION = (
+    "Apply inpainting only inside the highlighted region of the provided frame and leave the rest of the video untouched."
+)
 
 
 def _ensure_cuda_device(device_index: int) -> int:
@@ -35,6 +38,27 @@ def _ensure_cuda_device(device_index: int) -> int:
     device_index = max(device_index, 0)
     torch.cuda.set_device(device_index)
     return device_index
+
+
+def compose_generation_prompt(
+    video_prompt: str,
+    audio_prompt: Optional[str] = None,
+    extra_instruction: Optional[str] = None,
+) -> str:
+    prompt_sections: List[str] = []
+    if video_prompt:
+        prompt_sections.append(video_prompt.strip())
+    if extra_instruction:
+        prompt_sections.append(extra_instruction.strip())
+    composed = " ".join(section for section in prompt_sections if section)
+    if audio_prompt and audio_prompt.strip():
+        audio_section = audio_prompt.strip()
+        if not audio_section.lower().startswith("audio:"):
+            audio_section = f"Audio: {audio_section}"
+        composed = f"{composed} {audio_section}".strip()
+    if not composed:
+        raise HTTPException(status_code=400, detail="At least one of video_prompt or audio_prompt must be provided.")
+    return composed
 
 
 class VideoGenerationService:
@@ -106,9 +130,55 @@ class VideoGenerationService:
             return reference_path, cleanup
         raise HTTPException(status_code=400, detail="Unsupported reference file type. Provide an image or video.")
 
+    def _detect_bounding_box(self, frame_path: Path) -> Optional[Tuple[int, int, int, int, int, int]]:
+        image = cv2.imread(str(frame_path))
+        if image is None:
+            return None
+
+        height, width = image.shape[:2]
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+        lower_red1 = np.array([0, 70, 70])
+        upper_red1 = np.array([10, 255, 255])
+        lower_red2 = np.array([170, 70, 70])
+        upper_red2 = np.array([180, 255, 255])
+
+        mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
+        mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
+        mask = cv2.bitwise_or(mask1, mask2)
+
+        kernel = np.ones((5, 5), np.uint8)
+        mask = cv2.dilate(mask, kernel, iterations=1)
+
+        coords = cv2.findNonZero(mask)
+        if coords is None or coords.size == 0:
+            return None
+
+        x_min, y_min, box_width, box_height = cv2.boundingRect(coords)
+        x_max = x_min + box_width
+        y_max = y_min + box_height
+        return x_min, y_min, x_max, y_max, width, height
+
+    def _build_inpaint_instruction(self, frame_path: Path) -> str:
+        detection = self._detect_bounding_box(frame_path)
+        if detection is None:
+            return INPAINT_FALLBACK_INSTRUCTION
+
+        x_min, y_min, x_max, y_max, width, height = detection
+        x_min_pct = (x_min / max(width, 1)) * 100
+        x_max_pct = (x_max / max(width, 1)) * 100
+        y_min_pct = (y_min / max(height, 1)) * 100
+        y_max_pct = (y_max / max(height, 1)) * 100
+
+        return (
+            "Focus edits within the boxed region (horizontal "
+            f"{x_min_pct:.1f}%–{x_max_pct:.1f}%, vertical {y_min_pct:.1f}%–{y_max_pct:.1f}%) "
+            "and preserve everything outside the box exactly as in the reference frame."
+        )
+
     def _generate_segments(
         self,
-        prompt: str,
+        composed_prompt: str,
         target_frames: int,
         reference_path: Optional[Path],
         base_seed: int,
@@ -133,7 +203,7 @@ class VideoGenerationService:
         while total_frames < target_frames:
             seed = base_seed + segment_index
             generated_video, generated_audio, _ = self._engine.generate(
-                text_prompt=prompt,
+                text_prompt=composed_prompt,
                 image_path=str(reference_path) if reference_path else None,
                 video_frame_height_width=video_hw,
                 seed=seed,
@@ -190,9 +260,11 @@ class VideoGenerationService:
 
     def generate_video(
         self,
-        prompt: str,
+        video_prompt: str,
+        audio_prompt: Optional[str],
         video_length: float,
         reference_path: Optional[Path],
+        extra_instruction: Optional[str] = None,
     ) -> Tuple[Path, List[Path]]:
         if video_length <= 0:
             raise HTTPException(status_code=400, detail="Video length must be greater than zero.")
@@ -200,16 +272,22 @@ class VideoGenerationService:
         prepared_reference, cleanup_paths = self._prepare_reference(reference_path)
         target_frames = max(int(video_length * self._fps), self._fps)
         base_seed = self._base_config.get("seed", 100)
+        composed_prompt = compose_generation_prompt(
+            video_prompt=video_prompt,
+            audio_prompt=audio_prompt,
+            extra_instruction=extra_instruction,
+        )
 
         with self._lock:
             combined_video, combined_audio = self._generate_segments(
-                prompt=prompt,
+                composed_prompt=composed_prompt,
                 target_frames=target_frames,
                 reference_path=prepared_reference,
                 base_seed=base_seed,
             )
 
-            stem = "".join(ch for ch in prompt[:24] if ch.isalnum() or ch in ("-", "_"))
+            stem_source = video_prompt or "video"
+            stem = "".join(ch for ch in stem_source[:24] if ch.isalnum() or ch in ("-", "_"))
             if not stem:
                 stem = "video"
             unique_id = torch.randint(0, 10_000, (1,)).item()
@@ -226,7 +304,8 @@ class VideoGenerationService:
 
     def inpaint_video(
         self,
-        prompt: str,
+        video_prompt: str,
+        audio_prompt: Optional[str],
         source_video: Path,
         frame_path: Optional[Path],
     ) -> Tuple[Path, List[Path]]:
@@ -238,10 +317,14 @@ class VideoGenerationService:
             reference = self._extract_first_frame(source_video)
             temp_paths.append(reference)
 
+        extra_instruction = self._build_inpaint_instruction(reference)
+
         output_path, cleanup = self.generate_video(
-            prompt=prompt,
+            video_prompt=video_prompt,
+            audio_prompt=audio_prompt,
             video_length=duration,
             reference_path=reference,
+            extra_instruction=extra_instruction,
         )
         temp_paths.extend(cleanup)
         return output_path, temp_paths
@@ -276,7 +359,8 @@ def create_app(config_path: str, device_index: int) -> FastAPI:
     @app.post("/generate_video")
     async def generate_video_endpoint(
         background_tasks: BackgroundTasks,
-        prompt: str = Form(...),
+        video_prompt: str = Form(...),
+        audio_prompt: Optional[str] = Form(None),
         video_length: float = Form(5.0),
         reference: Optional[UploadFile] = File(None),
     ):
@@ -292,7 +376,8 @@ def create_app(config_path: str, device_index: int) -> FastAPI:
 
             output_path, additional_cleanup = await run_in_threadpool(
                 service.generate_video,
-                prompt,
+                video_prompt,
+                audio_prompt,
                 float(video_length),
                 reference_path,
             )
@@ -322,7 +407,8 @@ def create_app(config_path: str, device_index: int) -> FastAPI:
     @app.post("/inpaint_video")
     async def inpaint_video_endpoint(
         background_tasks: BackgroundTasks,
-        prompt: str = Form(...),
+        video_prompt: str = Form(...),
+        audio_prompt: Optional[str] = Form(None),
         generated_video: UploadFile = File(...),
         frame: Optional[UploadFile] = File(None),
     ):
@@ -342,7 +428,8 @@ def create_app(config_path: str, device_index: int) -> FastAPI:
 
             output_path, additional_cleanup = await run_in_threadpool(
                 service.inpaint_video,
-                prompt,
+                video_prompt,
+                audio_prompt,
                 source_video_path,
                 frame_path,
             )
