@@ -31,3 +31,6 @@ optimum-quanto
 fastapi
 uvicorn
 python-multipart
+
+openai
+python-dotenv

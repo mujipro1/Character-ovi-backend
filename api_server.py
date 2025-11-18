@@ -19,8 +19,14 @@ from omegaconf import DictConfig, OmegaConf
 from ovi.ovi_fusion_engine import NAME_TO_MODEL_SPECS_MAP, OviFusionEngine
 from ovi.utils.io_utils import save_video
 
-
 logger = logging.getLogger("api")
+
+try:
+    from modify_prompt import modify_prompt
+    PROMPT_MODIFICATION_AVAILABLE = True
+except ImportError:
+    logger.warning("modify_prompt.py not found. Prompt enhancement will be disabled.")
+    PROMPT_MODIFICATION_AVAILABLE = False
 
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".webp"}
@@ -178,10 +184,12 @@ class VideoGenerationService:
 
     def _generate_segments(
         self,
-        composed_prompt: str,
+        video_prompt: str,
+        audio_prompt: Optional[str],
         target_frames: int,
         reference_path: Optional[Path],
         base_seed: int,
+        extra_instruction: Optional[str] = None,
     ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
         combined_video: Optional[np.ndarray] = None
         combined_audio: Optional[np.ndarray] = None
@@ -200,8 +208,37 @@ class VideoGenerationService:
         video_negative_prompt = cfg.get("video_negative_prompt", "")
         audio_negative_prompt = cfg.get("audio_negative_prompt", "")
 
+        # Calculate number of clips needed and get enhanced prompts
+        duration_seconds = target_frames / self._fps
+        num_clips = max(1, math.ceil(duration_seconds / self._segment_duration))
+        
+        # Get enhanced prompts for each clip
+        enhanced_prompts = [video_prompt] * num_clips  # Fallback to original prompt
+        if PROMPT_MODIFICATION_AVAILABLE:
+            try:
+                enhanced_response = modify_prompt(video_prompt, duration_seconds, audio_prompt)
+                if enhanced_response and isinstance(enhanced_response, str):
+                    prompt_lines = [line.strip() for line in enhanced_response.strip().split("\n") if line.strip()]
+                    if len(prompt_lines) >= num_clips:
+                        enhanced_prompts = prompt_lines[:num_clips]
+                    elif len(prompt_lines) > 0:
+                        # If we got fewer prompts than needed, repeat the last one
+                        enhanced_prompts = prompt_lines + [prompt_lines[-1]] * (num_clips - len(prompt_lines))
+                    logger.info(f"Enhanced {num_clips} prompts for video generation")
+            except Exception as e:
+                logger.warning(f"Failed to enhance prompts: {e}. Using original prompt for all segments.")
+
         while total_frames < target_frames:
             seed = base_seed + segment_index
+            
+            # Use the enhanced prompt for this segment
+            segment_video_prompt = enhanced_prompts[min(segment_index, len(enhanced_prompts) - 1)]
+            composed_prompt = compose_generation_prompt(
+                video_prompt=segment_video_prompt,
+                audio_prompt=audio_prompt,
+                extra_instruction=extra_instruction,
+            )
+            
             generated_video, generated_audio, _ = self._engine.generate(
                 text_prompt=composed_prompt,
                 image_path=str(reference_path) if reference_path else None,
@@ -272,18 +309,15 @@ class VideoGenerationService:
         prepared_reference, cleanup_paths = self._prepare_reference(reference_path)
         target_frames = max(int(video_length * self._fps), self._fps)
         base_seed = self._base_config.get("seed", 100)
-        composed_prompt = compose_generation_prompt(
-            video_prompt=video_prompt,
-            audio_prompt=audio_prompt,
-            extra_instruction=extra_instruction,
-        )
 
         with self._lock:
             combined_video, combined_audio = self._generate_segments(
-                composed_prompt=composed_prompt,
+                video_prompt=video_prompt,
+                audio_prompt=audio_prompt,
                 target_frames=target_frames,
                 reference_path=prepared_reference,
                 base_seed=base_seed,
+                extra_instruction=extra_instruction,
             )
 
             stem_source = video_prompt or "video"
