@@ -79,7 +79,7 @@ def seperate_prompts(prompts):
     return prompts.split("\n")
 
 
-def modify_prompt(user_prompt, duration, audio_prompt=None):
+def modify_prompt_(user_prompt, duration, audio_prompt=None):
     clips = calculate_clips(duration)
     system_prompt = SYSTEM_PROMPT
     user_prompt_ = "Video Prompt: " + user_prompt

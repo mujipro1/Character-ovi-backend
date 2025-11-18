@@ -18,12 +18,8 @@ from omegaconf import DictConfig, OmegaConf
 from ovi.ovi_fusion_engine import NAME_TO_MODEL_SPECS_MAP, OviFusionEngine
 from ovi.utils.io_utils import save_video
 
-try:
-    from modify_prompt import modify_prompt
-    PROMPT_MODIFICATION_AVAILABLE = True
-except ImportError:
-    print("WARNING: modify_prompt.py not found. Prompt enhancement will be disabled.")
-    PROMPT_MODIFICATION_AVAILABLE = False
+from modify_prompt import modify_prompt_
+PROMPT_MODIFICATION_AVAILABLE = True
 
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".webp"}
@@ -224,7 +220,7 @@ class VideoGenerationService:
         if PROMPT_MODIFICATION_AVAILABLE:
             try:
                 print(f"\nEnhancing prompts using modify_prompt...")
-                enhanced_response = modify_prompt(video_prompt, duration_seconds, audio_prompt)
+                enhanced_response = modify_prompt_(video_prompt, duration_seconds, audio_prompt)
                 if enhanced_response and isinstance(enhanced_response, str):
                     prompt_lines = [line.strip() for line in enhanced_response.strip().split("\n") if line.strip()]
                     if len(prompt_lines) >= num_clips:
