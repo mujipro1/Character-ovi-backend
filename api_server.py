@@ -1,5 +1,4 @@
 import argparse
-import logging
 import math
 import os
 import tempfile
@@ -19,13 +18,11 @@ from omegaconf import DictConfig, OmegaConf
 from ovi.ovi_fusion_engine import NAME_TO_MODEL_SPECS_MAP, OviFusionEngine
 from ovi.utils.io_utils import save_video
 
-logger = logging.getLogger("api")
-
 try:
     from modify_prompt import modify_prompt
     PROMPT_MODIFICATION_AVAILABLE = True
 except ImportError:
-    logger.warning("modify_prompt.py not found. Prompt enhancement will be disabled.")
+    print("WARNING: modify_prompt.py not found. Prompt enhancement will be disabled.")
     PROMPT_MODIFICATION_AVAILABLE = False
 
 
@@ -89,9 +86,9 @@ class VideoGenerationService:
         self._output_dir.mkdir(parents=True, exist_ok=True)
 
         target_dtype = torch.bfloat16
-        logger.info("Loading OviFusionEngine for API service...")
+        print("Loading OviFusionEngine for API service...")
         self._engine = OviFusionEngine(config=config, device=self._device_index, target_dtype=target_dtype)
-        logger.info("OviFusionEngine loaded successfully.")
+        print("OviFusionEngine loaded successfully.")
 
     @staticmethod
     def _normalize_audio(audio: np.ndarray) -> np.ndarray:
@@ -212,10 +209,21 @@ class VideoGenerationService:
         duration_seconds = target_frames / self._fps
         num_clips = max(1, math.ceil(duration_seconds / self._segment_duration))
         
+        print(f"\n{'='*60}")
+        print(f"VIDEO GENERATION REQUEST")
+        print(f"{'='*60}")
+        print(f"Original Video Prompt: {video_prompt}")
+        if audio_prompt:
+            print(f"Audio Prompt: {audio_prompt}")
+        print(f"Target Duration: {duration_seconds:.2f} seconds")
+        print(f"Number of clips needed: {num_clips}")
+        print(f"Segment duration: {self._segment_duration} seconds")
+        
         # Get enhanced prompts for each clip
         enhanced_prompts = [video_prompt] * num_clips  # Fallback to original prompt
         if PROMPT_MODIFICATION_AVAILABLE:
             try:
+                print(f"\nEnhancing prompts using modify_prompt...")
                 enhanced_response = modify_prompt(video_prompt, duration_seconds, audio_prompt)
                 if enhanced_response and isinstance(enhanced_response, str):
                     prompt_lines = [line.strip() for line in enhanced_response.strip().split("\n") if line.strip()]
@@ -224,9 +232,16 @@ class VideoGenerationService:
                     elif len(prompt_lines) > 0:
                         # If we got fewer prompts than needed, repeat the last one
                         enhanced_prompts = prompt_lines + [prompt_lines[-1]] * (num_clips - len(prompt_lines))
-                    logger.info(f"Enhanced {num_clips} prompts for video generation")
+                    print(f"Successfully enhanced {num_clips} prompts for video generation")
+                    print(f"\nENHANCED PROMPTS:")
+                    for i, prompt in enumerate(enhanced_prompts, 1):
+                        print(f"  Clip {i}: {prompt}")
             except Exception as e:
-                logger.warning(f"Failed to enhance prompts: {e}. Using original prompt for all segments.")
+                print(f"WARNING: Failed to enhance prompts: {e}. Using original prompt for all segments.")
+        else:
+            print(f"Using original prompt for all {num_clips} segments (prompt enhancement not available)")
+        
+        print(f"{'='*60}\n")
 
         while total_frames < target_frames:
             seed = base_seed + segment_index
@@ -238,6 +253,13 @@ class VideoGenerationService:
                 audio_prompt=audio_prompt,
                 extra_instruction=extra_instruction,
             )
+            
+            print(f"\nGenerating Segment {segment_index + 1}/{num_clips}")
+            print(f"  Seed: {seed}")
+            print(f"  Video Prompt: {segment_video_prompt}")
+            if extra_instruction:
+                print(f"  Extra Instruction: {extra_instruction}")
+            print(f"  Composed Prompt: {composed_prompt}")
             
             generated_video, generated_audio, _ = self._engine.generate(
                 text_prompt=composed_prompt,
@@ -253,6 +275,8 @@ class VideoGenerationService:
                 video_negative_prompt=video_negative_prompt,
                 audio_negative_prompt=audio_negative_prompt,
             )
+            
+            print(f"  Segment {segment_index + 1} generated successfully")
 
             if generated_video is None:
                 raise RuntimeError("Video generation failed.")
@@ -290,6 +314,11 @@ class VideoGenerationService:
             if combined_audio.shape[0] == 1:
                 combined_audio = combined_audio.squeeze(0)
 
+        print(f"\nAll segments generated successfully!")
+        print(f"Total frames: {combined_video.shape[1]}")
+        if combined_audio is not None:
+            print(f"Total audio samples: {combined_audio.shape[0] if combined_audio.ndim == 1 else combined_audio.shape[1]}")
+        
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
 
@@ -305,6 +334,13 @@ class VideoGenerationService:
     ) -> Tuple[Path, List[Path]]:
         if video_length <= 0:
             raise HTTPException(status_code=400, detail="Video length must be greater than zero.")
+
+        print(f"\nStarting video generation...")
+        print(f"Video length: {video_length} seconds")
+        if reference_path:
+            print(f"Reference file: {reference_path}")
+        if extra_instruction:
+            print(f"Inpainting instruction: {extra_instruction}")
 
         prepared_reference, cleanup_paths = self._prepare_reference(reference_path)
         target_frames = max(int(video_length * self._fps), self._fps)
@@ -326,6 +362,8 @@ class VideoGenerationService:
                 stem = "video"
             unique_id = torch.randint(0, 10_000, (1,)).item()
             output_path = self._output_dir / f"{stem}_{os.getpid()}_{unique_id}.mp4"
+            
+            print(f"\nSaving video to: {output_path}")
             save_video(
                 output_path=str(output_path),
                 video_numpy=combined_video,
@@ -333,6 +371,7 @@ class VideoGenerationService:
                 fps=self._fps,
                 sample_rate=self._sample_rate,
             )
+            print(f"Video saved successfully!")
 
         return output_path, cleanup_paths
 
@@ -343,15 +382,29 @@ class VideoGenerationService:
         source_video: Path,
         frame_path: Optional[Path],
     ) -> Tuple[Path, List[Path]]:
+        print(f"\n{'='*60}")
+        print(f"INPAINT VIDEO REQUEST")
+        print(f"{'='*60}")
+        print(f"Source video: {source_video}")
+        print(f"Video prompt: {video_prompt}")
+        if audio_prompt:
+            print(f"Audio prompt: {audio_prompt}")
+        
         temp_paths: List[Path] = []
         duration = self._determine_video_duration(source_video)
+        print(f"Video duration: {duration:.2f} seconds")
 
         reference = frame_path
         if reference is None:
+            print("No frame provided, extracting first frame from video...")
             reference = self._extract_first_frame(source_video)
             temp_paths.append(reference)
+            print(f"Extracted frame: {reference}")
+        else:
+            print(f"Using provided frame: {reference}")
 
         extra_instruction = self._build_inpaint_instruction(reference)
+        print(f"Inpainting instruction: {extra_instruction}")
 
         output_path, cleanup = self.generate_video(
             video_prompt=video_prompt,
@@ -361,6 +414,7 @@ class VideoGenerationService:
             extra_instruction=extra_instruction,
         )
         temp_paths.extend(cleanup)
+        print(f"{'='*60}\n")
         return output_path, temp_paths
 
     def _determine_video_duration(self, video_path: Path) -> float:
@@ -373,7 +427,7 @@ class VideoGenerationService:
             if path.exists():
                 path.unlink()
         except Exception as exc:
-            logger.warning("Failed to delete %s: %s", path, exc)
+            print(f"WARNING: Failed to delete {path}: {exc}")
 
 
 def _parse_args() -> argparse.Namespace:
@@ -494,8 +548,10 @@ def create_app(config_path: str, device_index: int) -> FastAPI:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
     args = _parse_args()
+    print(f"Starting OVI API server on {args.host}:{args.port}")
+    print(f"Using config: {args.config}")
+    print(f"Device index: {args.device_index}")
     app = create_app(config_path=args.config, device_index=args.device_index)
     import uvicorn
 
