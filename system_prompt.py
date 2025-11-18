@@ -20,5 +20,5 @@ SYSTEM_PROMPT = '''
     You are also given the audio prompt that will be used for the video. Ensure that the prompts you generate align well with the mood and theme of the audio.
     The audio prompt is only for your reference; do not include it in your response.
     
-    Important: The user prompt might be short, you need to increase their length to add more details to the scene.
+    Important: The user prompt might be short, you need to increase their length to add more details to the scene. All prompts should have the basic video details in them, since all clips will be seperately generated and have no context of the entire video or eachother.
 '''
