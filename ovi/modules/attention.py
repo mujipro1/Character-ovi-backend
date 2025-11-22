@@ -114,8 +114,7 @@ def flash_attention(
             x = x[0]
         x = x.unflatten(0, (b, lq))
         
-    else:
-        assert FLASH_ATTN_2_AVAILABLE
+    elif FLASH_ATTN_2_AVAILABLE:
         x = flash_attn.flash_attn_varlen_func(
             q=q,
             k=k,
@@ -131,6 +130,126 @@ def flash_attention(
             causal=causal,
             window_size=window_size,
             deterministic=deterministic).unflatten(0, (b, lq))
+    else:
+        # Fallback to standard PyTorch attention when flash attention is not available
+        # This is used for AMD GPUs (ROCm) or when flash-attn is not installed
+        warnings.warn(
+            'Flash attention is not available. Falling back to standard PyTorch attention. '
+            'This may have performance implications.'
+        )
+        
+        if window_size != (-1, -1):
+            warnings.warn(
+                'Sliding window attention (window_size) is not supported in fallback mode. '
+                'Using full attention instead.'
+            )
+        
+        # Reconstruct original shapes for standard attention
+        # q, k, v are currently flattened/concatenated, we need to reconstruct [B, L, N, C] format
+        max_q_len = q_lens.max().item()
+        max_k_len = k_lens.max().item()
+        
+        # Determine if we have head dimension in the flattened tensors
+        # q shape after preprocessing: [total_q_tokens, ...] where ... could be [C] or [N, C]
+        if len(q.shape) == 2:
+            # q is [total_q_tokens, C] - no separate head dimension visible
+            # We'll treat C as the combined dimension (num_heads * head_dim)
+            q_reconstructed = torch.zeros(
+                (b, max_q_len, q.size(-1)),
+                dtype=q.dtype, device=q.device
+            )
+            q_cumsum = torch.cat([q_lens.new_zeros([1]), q_lens]).cumsum(0)
+            for i in range(b):
+                q_reconstructed[i, :q_lens[i]] = q[q_cumsum[i]:q_cumsum[i+1]]
+            
+            k_reconstructed = torch.zeros(
+                (b, max_k_len, k.size(-1)),
+                dtype=k.dtype, device=k.device
+            )
+            v_reconstructed = torch.zeros(
+                (b, max_k_len, v.size(-1)),
+                dtype=v.dtype, device=v.device
+            )
+            k_cumsum = torch.cat([k_lens.new_zeros([1]), k_lens]).cumsum(0)
+            for i in range(b):
+                k_reconstructed[i, :k_lens[i]] = k[k_cumsum[i]:k_cumsum[i+1]]
+                v_reconstructed[i, :k_lens[i]] = v[k_cumsum[i]:k_cumsum[i+1]]
+            
+            # Use manual attention computation
+            scale = softmax_scale if softmax_scale is not None else (q.size(-1) ** -0.5)
+            scores = torch.bmm(q_reconstructed, k_reconstructed.transpose(1, 2)) * scale
+            
+            # Apply masks
+            if causal:
+                mask = torch.triu(torch.ones(max_q_len, max_k_len, device=q.device, dtype=torch.bool), diagonal=1)
+                scores.masked_fill_(mask.unsqueeze(0), float('-inf'))
+            
+            q_mask = torch.arange(max_q_len, device=q.device).unsqueeze(0) >= q_lens.unsqueeze(1)
+            k_mask = torch.arange(max_k_len, device=k.device).unsqueeze(0) >= k_lens.unsqueeze(1)
+            scores.masked_fill_(q_mask.unsqueeze(2), float('-inf'))
+            scores.masked_fill_(k_mask.unsqueeze(1), float('-inf'))
+            
+            attn_weights = torch.softmax(scores, dim=-1)
+            if dropout_p > 0.0 and deterministic is False:
+                attn_weights = torch.nn.functional.dropout(attn_weights, p=dropout_p)
+            
+            x = torch.bmm(attn_weights, v_reconstructed)
+            
+            # Trim and reshape
+            x_list = []
+            for i in range(b):
+                x_list.append(x[i, :q_lens[i]])
+            x = torch.cat(x_list, dim=0)
+            x = x.view(b, lq, -1)
+        else:
+            # q has shape [total_q_tokens, N, C] where N is num_heads
+            num_heads = q.size(1)
+            head_dim = q.size(2)
+            
+            q_reconstructed = torch.zeros(
+                (b, max_q_len, num_heads, head_dim),
+                dtype=q.dtype, device=q.device
+            )
+            q_cumsum = torch.cat([q_lens.new_zeros([1]), q_lens]).cumsum(0)
+            for i in range(b):
+                q_reconstructed[i, :q_lens[i]] = q[q_cumsum[i]:q_cumsum[i+1]]
+            
+            k_reconstructed = torch.zeros(
+                (b, max_k_len, num_heads, head_dim),
+                dtype=k.dtype, device=k.device
+            )
+            v_reconstructed = torch.zeros(
+                (b, max_k_len, num_heads, head_dim),
+                dtype=v.dtype, device=v.device
+            )
+            k_cumsum = torch.cat([k_lens.new_zeros([1]), k_lens]).cumsum(0)
+            for i in range(b):
+                k_reconstructed[i, :k_lens[i]] = k[k_cumsum[i]:k_cumsum[i+1]]
+                v_reconstructed[i, :k_lens[i]] = v[k_cumsum[i]:k_cumsum[i+1]]
+            
+            scale = softmax_scale if softmax_scale is not None else (head_dim ** -0.5)
+            scores = torch.einsum('blhd,bshd->bhls', q_reconstructed, k_reconstructed) * scale
+            
+            if causal:
+                mask = torch.triu(torch.ones(max_q_len, max_k_len, device=q.device, dtype=torch.bool), diagonal=1)
+                scores.masked_fill_(mask.unsqueeze(0).unsqueeze(0), float('-inf'))
+            
+            q_mask = torch.arange(max_q_len, device=q.device).unsqueeze(0) >= q_lens.unsqueeze(1)
+            k_mask = torch.arange(max_k_len, device=k.device).unsqueeze(0) >= k_lens.unsqueeze(1)
+            scores.masked_fill_(q_mask.unsqueeze(1).unsqueeze(3), float('-inf'))
+            scores.masked_fill_(k_mask.unsqueeze(1).unsqueeze(2), float('-inf'))
+            
+            attn_weights = torch.softmax(scores, dim=-1)
+            if dropout_p > 0.0 and deterministic is False:
+                attn_weights = torch.nn.functional.dropout(attn_weights, p=dropout_p)
+            
+            x = torch.einsum('bhls,bshd->blhd', attn_weights, v_reconstructed)
+            
+            x_list = []
+            for i in range(b):
+                x_list.append(x[i, :q_lens[i]])
+            x = torch.cat(x_list, dim=0)
+            x = x.unflatten(0, (b, lq))
 
     # output
     return x.type(out_dtype)
