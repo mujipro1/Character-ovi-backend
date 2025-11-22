@@ -146,6 +146,9 @@ def flash_attention(
         
         # Reconstruct original shapes for standard attention
         # q, k, v are currently flattened/concatenated, we need to reconstruct [B, L, N, C] format
+        # Ensure q_lens and k_lens are on the same device as q and k
+        q_lens = q_lens.to(q.device)
+        k_lens = k_lens.to(k.device)
         max_q_len = q_lens.max().item()
         max_k_len = k_lens.max().item()
         
