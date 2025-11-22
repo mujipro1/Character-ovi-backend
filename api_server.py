@@ -33,7 +33,7 @@ INPAINT_FALLBACK_INSTRUCTION = (
 
 def _ensure_cuda_device(device_index: int) -> int:
     if not torch.cuda.is_available():
-        raise RuntimeError("CUDA device is required to run the OVI FP8 quantized model.")
+        raise RuntimeError("CUDA/ROCm device is required. Please ensure PyTorch is installed with CUDA or ROCm support.")
     device_index = max(device_index, 0)
     torch.cuda.set_device(device_index)
     return device_index

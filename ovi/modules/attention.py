@@ -167,12 +167,12 @@ def flash_attention(
         
         scale = softmax_scale if softmax_scale is not None else (head_dim ** -0.5)
         
-        # Process each batch item separately to save memory
-        # We'll pad each item back to lq to match expected output shape
-        if has_heads:
-            x = torch.zeros((b, lq, num_heads, head_dim), dtype=q.dtype, device=q.device)
-        else:
-            x = torch.zeros((b, lq, head_dim), dtype=q.dtype, device=q.device)
+        # Process each batch item separately with chunked attention to save memory
+        # Use smaller chunk sizes to limit memory usage - process queries in small chunks
+        chunk_size = 128  # Process 128 query tokens at a time to limit memory
+        
+        # We'll build output incrementally to avoid creating full tensor upfront
+        x_list = []
         
         for i in range(b):
             q_i = q[q_cumsum[i]:q_cumsum[i+1]]  # [Lq_i, ...]
@@ -192,35 +192,58 @@ def flash_attention(
                 k_i = k_i.unsqueeze(0)  # [1, Lk_i, C]
                 v_i = v_i.unsqueeze(0)  # [1, Lk_i, C]
             
-            # Use PyTorch's memory-efficient scaled_dot_product_attention
-            # It handles causal masking and is optimized for memory
-            attn_mask = None
-            if causal:
-                # Create causal mask for this specific sequence length
-                attn_mask = torch.triu(
-                    torch.ones(q_len_i, k_len_i, device=q.device, dtype=torch.bool),
-                    diagonal=1
-                )
+            # Process queries in small chunks to avoid huge attention matrices
+            x_i_chunks = []
+            num_chunks = (q_len_i + chunk_size - 1) // chunk_size
             
-            # Use scaled_dot_product_attention which is memory optimized
-            x_i = torch.nn.functional.scaled_dot_product_attention(
-                q_i, k_i, v_i,
-                attn_mask=attn_mask,
-                is_causal=causal and attn_mask is None,
-                dropout_p=dropout_p if not deterministic else 0.0,
-                scale=scale
-            )
+            for chunk_idx in range(num_chunks):
+                start_idx = chunk_idx * chunk_size
+                end_idx = min(start_idx + chunk_size, q_len_i)
+                q_chunk = q_i[:, start_idx:end_idx]  # [N, chunk_size, C] or [1, chunk_size, C]
+                
+                # For causal attention, limit keys to current query position
+                if causal:
+                    k_chunk = k_i[:, :end_idx]  # [N, end_idx, C]
+                    v_chunk = v_i[:, :end_idx]  # [N, end_idx, C]
+                else:
+                    k_chunk = k_i  # [N, Lk_i, C]
+                    v_chunk = v_i  # [N, Lk_i, C]
+                
+                # Use scaled_dot_product_attention with small chunks
+                # This is memory optimized and handles normalization correctly
+                x_chunk = torch.nn.functional.scaled_dot_product_attention(
+                    q_chunk, k_chunk, v_chunk,
+                    attn_mask=None,
+                    is_causal=causal,
+                    dropout_p=dropout_p if not deterministic else 0.0,
+                    scale=scale
+                )
+                
+                x_i_chunks.append(x_chunk)
+            
+            # Concatenate chunks: [N, Lq_i, C] or [1, Lq_i, C]
+            x_i = torch.cat(x_i_chunks, dim=1)
             
             if has_heads:
                 # Transpose back: [N, Lq_i, C] -> [Lq_i, N, C]
                 x_i = x_i.transpose(0, 1)
-                # Store in output tensor (only the valid part)
-                x[i, :q_len_i] = x_i
             else:
                 # Remove head dimension: [1, Lq_i, C] -> [Lq_i, C]
                 x_i = x_i.squeeze(0)
-                # Store in output tensor (only the valid part)
-                x[i, :q_len_i] = x_i
+            
+            x_list.append(x_i)
+        
+        # Now create output tensor and fill it (more memory efficient than creating upfront)
+        if has_heads:
+            x = torch.zeros((b, lq, num_heads, head_dim), dtype=q.dtype, device=q.device)
+            for i in range(b):
+                q_len_i = int(q_lens[i].item())
+                x[i, :q_len_i] = x_list[i]
+        else:
+            x = torch.zeros((b, lq, head_dim), dtype=q.dtype, device=q.device)
+            for i in range(b):
+                q_len_i = int(q_lens[i].item())
+                x[i, :q_len_i] = x_list[i]
 
     # output
     return x.type(out_dtype)
