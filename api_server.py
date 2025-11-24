@@ -972,6 +972,51 @@ def create_app(config_path: str, device_index: int) -> FastAPI:
             background=background_tasks,
         )
 
+    @app.post("/test")
+    async def test_endpoint(
+        background_tasks: BackgroundTasks,
+        video_prompt: str = Form(...),
+        audio_prompt: Optional[str] = Form(None),
+        video_length: float = Form(5.0),
+        reference: Optional[UploadFile] = File(None),
+    ):
+        """
+        Test endpoint that returns a sample video without running the model.
+        Accepts the same parameters as /generate_video for testing purposes.
+        """
+        # Look for sample video in parent folder first, then current folder
+        current_dir = Path(__file__).parent
+        parent_dir = current_dir.parent
+        sample_video = None
+        
+        # Check parent folder for sample video files
+        for ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
+            parent_sample = parent_dir / f"sample{ext}"
+            if parent_sample.exists():
+                sample_video = parent_sample
+                break
+        
+        # If not found in parent, check current folder
+        if sample_video is None:
+            for ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
+                current_sample = current_dir / f"sample{ext}"
+                if current_sample.exists():
+                    sample_video = current_sample
+                    break
+        
+        if sample_video is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Sample video not found. Please ensure 'sample.mp4' (or similar) exists in the parent or current folder."
+            )
+        
+        return FileResponse(
+            path=str(sample_video),
+            media_type="video/mp4",
+            filename=sample_video.name,
+            background=background_tasks,
+        )
+
     @app.post("/inpaint_video")
     async def inpaint_video_endpoint(
         background_tasks: BackgroundTasks,
