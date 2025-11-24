@@ -88,13 +88,42 @@ class VideoGenerationService:
 
     @staticmethod
     def _normalize_audio(audio: np.ndarray) -> np.ndarray:
+        """
+        Normalize audio to consistent format: (channels, samples) where channels is typically 1 (mono).
+        
+        Args:
+            audio: Audio array in various formats
+            
+        Returns:
+            Audio array with shape (channels, samples), typically (1, samples) for mono
+        """
+        if audio is None:
+            return None
+        
         if audio.ndim == 1:
+            # 1D array: assume it's samples, convert to (1, samples)
             return audio.reshape(1, -1)
+        
         if audio.ndim == 2:
-            if audio.shape[0] <= audio.shape[1]:
+            # 2D array: determine if it's (samples, channels) or (channels, samples)
+            # Typically, channels will be 1-2 (mono/stereo), samples will be much larger
+            # If first dimension is small (<= 2), assume it's (channels, samples)
+            # If first dimension is large, assume it's (samples, channels) and transpose
+            if audio.shape[0] <= 2:
+                # Likely (channels, samples) - return as is
                 return audio
-            return audio.T
-        return audio.reshape(1, -1)
+            elif audio.shape[1] <= 2:
+                # Likely (samples, channels) - transpose to (channels, samples)
+                return audio.T
+            else:
+                # Ambiguous case - assume (samples, channels) if samples > channels
+                # Otherwise assume (channels, samples)
+                if audio.shape[0] > audio.shape[1]:
+                    return audio.T
+                return audio
+        
+        # Higher dimensions - flatten and reshape
+        return audio.flatten().reshape(1, -1)
 
     @staticmethod
     def _is_image(path: Path) -> bool:
@@ -128,15 +157,35 @@ class VideoGenerationService:
         Returns:
             Path to the saved frame file
         """
+        # Ensure frame_index is valid
+        num_frames = video_numpy.shape[1]
+        if frame_index < 0:
+            frame_index = num_frames + frame_index
+        frame_index = max(0, min(frame_index, num_frames - 1))
+        
         # Extract the frame: (C, F, H, W) -> (C, H, W)
         frame = video_numpy[:, frame_index, :, :]
+        
+        # Ensure frame is a numpy array
+        if not isinstance(frame, np.ndarray):
+            frame = np.array(frame)
         
         # Reorder to (H, W, C)
         if frame.shape[0] == 3:
             frame = frame.transpose(1, 2, 0)  # (3, H, W) -> (H, W, 3)
         else:
-            frame = frame.squeeze(0)  # (1, H, W) -> (H, W)
-            frame = np.stack([frame, frame, frame], axis=-1)  # Convert grayscale to RGB
+            # Grayscale: (1, H, W) or (H, W)
+            if frame.ndim == 3:
+                frame = frame.squeeze(0)  # (1, H, W) -> (H, W)
+            
+            # Ensure frame is 2D before stacking
+            if frame.ndim != 2:
+                raise ValueError(f"Expected 2D frame after squeeze, got shape {frame.shape}")
+            
+            # Convert grayscale to RGB by stacking three copies
+            # Ensure we pass a proper list/tuple to np.stack
+            frame_list = [np.array(frame), np.array(frame), np.array(frame)]
+            frame = np.stack(frame_list, axis=-1)  # (H, W) -> (H, W, 3)
         
         # Normalize to [0, 255] if needed
         if frame.max() <= 1.0:
@@ -145,7 +194,7 @@ class VideoGenerationService:
         else:
             frame = np.clip(frame, 0, 255).astype(np.uint8)
         
-        # Convert BGR to RGB for cv2 (cv2 uses BGR)
+        # Convert RGB to BGR for cv2 (cv2 uses BGR)
         if frame.shape[2] == 3:
             frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         
@@ -335,13 +384,58 @@ class VideoGenerationService:
 
             total_frames = combined_video.shape[1]
 
+            # Handle audio concatenation with proper shape checking
             if generated_audio is not None:
+                print(f"  Segment {segment_index + 1} audio shape: {generated_audio.shape}")
                 normalized_audio = self._normalize_audio(generated_audio)
+                print(f"  Normalized audio shape: {normalized_audio.shape}")
+                
+                # Ensure normalized_audio is 2D with shape (channels, samples)
+                if normalized_audio.ndim == 1:
+                    normalized_audio = normalized_audio.reshape(1, -1)
+                
                 if combined_audio is None:
                     combined_audio = normalized_audio
+                    print(f"  Initialized combined_audio with shape: {combined_audio.shape}")
                 else:
-                    combined_audio = np.concatenate([combined_audio, normalized_audio], axis=1)
-                total_samples = combined_audio.shape[1]
+                    # Ensure combined_audio is also 2D
+                    if combined_audio.ndim == 1:
+                        combined_audio = combined_audio.reshape(1, -1)
+                    
+                    # Ensure shapes match for concatenation (same number of channels)
+                    print(f"  Current combined_audio shape: {combined_audio.shape}")
+                    if combined_audio.shape[0] != normalized_audio.shape[0]:
+                        print(f"  WARNING: Channel mismatch! combined_audio.shape[0]={combined_audio.shape[0]}, normalized_audio.shape[0]={normalized_audio.shape[0]}")
+                        # Convert to mono if needed (take mean across channels)
+                        if combined_audio.shape[0] > 1:
+                            combined_audio = combined_audio.mean(axis=0, keepdims=True)
+                        if normalized_audio.shape[0] > 1:
+                            normalized_audio = normalized_audio.mean(axis=0, keepdims=True)
+                    
+                    try:
+                        combined_audio = np.concatenate([combined_audio, normalized_audio], axis=1)
+                        print(f"  After concatenation, combined_audio shape: {combined_audio.shape}")
+                    except ValueError as e:
+                        print(f"  ERROR: Failed to concatenate audio: {e}")
+                        print(f"    combined_audio shape: {combined_audio.shape}, normalized_audio shape: {normalized_audio.shape}")
+                        raise
+                total_samples = combined_audio.shape[1] if combined_audio.ndim == 2 else combined_audio.shape[0]
+            else:
+                print(f"  WARNING: Segment {segment_index + 1} has no audio!")
+                # If we have combined_audio from previous segments, pad with silence
+                if combined_audio is not None:
+                    # Calculate expected audio length for this segment
+                    segment_duration = self._segment_duration
+                    expected_samples = int(segment_duration * self._sample_rate)
+                    # Create silence (zeros) with same shape as combined_audio
+                    if combined_audio.ndim == 2:
+                        silence = np.zeros((combined_audio.shape[0], expected_samples), dtype=combined_audio.dtype)
+                    else:
+                        silence = np.zeros(expected_samples, dtype=combined_audio.dtype)
+                        silence = silence.reshape(1, -1)
+                        combined_audio = combined_audio.reshape(1, -1) if combined_audio.ndim == 1 else combined_audio
+                    combined_audio = np.concatenate([combined_audio, silence], axis=1)
+                    print(f"  Padded with silence. New combined_audio shape: {combined_audio.shape}")
             segment_index += 1
 
             if segment_index > 16:
@@ -355,15 +449,31 @@ class VideoGenerationService:
             combined_video = combined_video[:, :target_frames, :, :]
 
         if combined_audio is not None:
+            # Ensure combined_audio is in (channels, samples) format
+            if combined_audio.ndim == 1:
+                combined_audio = combined_audio.reshape(1, -1)
+            
+            print(f"Final combined_audio shape before trimming: {combined_audio.shape}")
             target_samples = math.ceil((target_frames / self._fps) * self._sample_rate)
+            
             if combined_audio.shape[1] > target_samples:
                 combined_audio = combined_audio[:, :target_samples]
+                print(f"Trimmed audio to {target_samples} samples. New shape: {combined_audio.shape}")
             elif combined_audio.shape[1] < target_samples:
                 pad_width = target_samples - combined_audio.shape[1]
                 combined_audio = np.pad(combined_audio, ((0, 0), (0, pad_width)), mode="edge")
+                print(f"Padded audio to {target_samples} samples. New shape: {combined_audio.shape}")
 
+            # Convert to format expected by save_video: (samples,) for mono or (samples, channels) for stereo
+            # scipy.io.wavfile.write expects (samples, channels) format
             if combined_audio.shape[0] == 1:
+                # Mono: convert from (1, samples) to (samples,)
                 combined_audio = combined_audio.squeeze(0)
+            else:
+                # Stereo: convert from (channels, samples) to (samples, channels)
+                combined_audio = combined_audio.T
+            
+            print(f"Final combined_audio shape for saving: {combined_audio.shape}")
 
         print(f"\nAll segments generated successfully!")
         print(f"Total frames: {combined_video.shape[1]}")
