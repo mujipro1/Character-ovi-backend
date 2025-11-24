@@ -377,14 +377,20 @@ class VideoGenerationService:
         audio_prompt: Optional[str],
         source_video: Path,
         frame_path: Optional[Path],
+        original_prompt: Optional[str] = None,
+        original_audio_prompt: Optional[str] = None,
     ) -> Tuple[Path, List[Path]]:
         print(f"\n{'='*60}")
         print(f"INPAINT VIDEO REQUEST")
         print(f"{'='*60}")
         print(f"Source video: {source_video}")
-        print(f"Video prompt: {video_prompt}")
+        print(f"Inpainting video prompt: {video_prompt}")
+        if original_prompt:
+            print(f"Original video prompt: {original_prompt}")
         if audio_prompt:
-            print(f"Audio prompt: {audio_prompt}")
+            print(f"Inpainting audio prompt: {audio_prompt}")
+        if original_audio_prompt:
+            print(f"Original audio prompt: {original_audio_prompt}")
         
         temp_paths: List[Path] = []
         duration = self._determine_video_duration(source_video)
@@ -402,12 +408,28 @@ class VideoGenerationService:
         extra_instruction = self._build_inpaint_instruction(reference)
         print(f"Inpainting instruction: {extra_instruction}")
 
+        # Combine original prompt with inpainting prompt and bounding box instruction
+        combined_video_prompt_parts = []
+        if original_prompt:
+            combined_video_prompt_parts.append(original_prompt.strip())
+        combined_video_prompt_parts.append(video_prompt.strip())
+        if extra_instruction:
+            combined_video_prompt_parts.append(extra_instruction.strip())
+        combined_video_prompt = ". ".join(part for part in combined_video_prompt_parts if part)
+        
+        print(f"Combined video prompt: {combined_video_prompt}")
+
+        # Use inpainting audio prompt if provided, otherwise use original audio prompt
+        final_audio_prompt = audio_prompt if audio_prompt else original_audio_prompt
+        if final_audio_prompt:
+            print(f"Using audio prompt: {final_audio_prompt}")
+
         output_path, cleanup = self.generate_video(
-            video_prompt=video_prompt,
-            audio_prompt=audio_prompt,
+            video_prompt=combined_video_prompt,
+            audio_prompt=final_audio_prompt,
             video_length=duration,
             reference_path=reference,
-            extra_instruction=extra_instruction,
+            extra_instruction=None,  # Already included in combined_video_prompt
         )
         temp_paths.extend(cleanup)
         print(f"{'='*60}\n")
@@ -495,6 +517,8 @@ def create_app(config_path: str, device_index: int) -> FastAPI:
         audio_prompt: Optional[str] = Form(None),
         generated_video: UploadFile = File(...),
         frame: Optional[UploadFile] = File(None),
+        original_prompt: Optional[str] = Form(None),
+        original_audio_prompt: Optional[str] = Form(None),
     ):
         temp_paths: List[Path] = []
         try:
@@ -516,6 +540,8 @@ def create_app(config_path: str, device_index: int) -> FastAPI:
                 audio_prompt,
                 source_video_path,
                 frame_path,
+                original_prompt,
+                original_audio_prompt,
             )
             temp_paths.extend(additional_cleanup)
         except HTTPException as exc:
