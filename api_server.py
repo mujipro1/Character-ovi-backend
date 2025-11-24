@@ -628,7 +628,7 @@ class VideoGenerationService:
             segment_end_frame = min(segment_end_frame, original_total_frames)
             
             # Get reference frame for regeneration
-            # Priority: 1) provided reference_path, 2) provided frame_path, 3) last frame from previous segment, 4) extract from video
+            # Priority: 1) provided reference_path, 2) last frame from previous segment, 3) extract from video at frame_time
             if reference_path:
                 # Use provided reference asset (image or video)
                 reference_frame_path, ref_cleanup = self._prepare_reference(reference_path)
@@ -642,17 +642,25 @@ class VideoGenerationService:
                     temp_paths.append(reference_frame_path)
                     print(f"Using last frame from previous segment (frame {prev_segment_end_frame - 1}) as reference")
                 else:
-                    # Fallback to provided frame or extract from video
-                    reference_frame_path = frame_path if frame_path else self._extract_first_frame(source_video)
-                    if not frame_path:
+                    # Fallback: extract frame from video at frame_time
+                    if frame_time is not None:
+                        reference_frame_path = self._extract_frame_at_time(source_video, frame_time)
                         temp_paths.append(reference_frame_path)
-                    print(f"Using provided frame as reference (first segment)")
+                        print(f"Extracting frame from video at {frame_time:.2f}s (first segment)")
+                    else:
+                        reference_frame_path = self._extract_first_frame(source_video)
+                        temp_paths.append(reference_frame_path)
+                        print(f"Extracting first frame from video (first segment, no frame_time)")
             else:
-                # First segment, use provided frame or extract from video
-                reference_frame_path = frame_path if frame_path else self._extract_first_frame(source_video)
-                if not frame_path:
+                # First segment, extract frame from video at frame_time
+                if frame_time is not None:
+                    reference_frame_path = self._extract_frame_at_time(source_video, frame_time)
                     temp_paths.append(reference_frame_path)
-                print(f"Using provided frame as reference (first segment)")
+                    print(f"Extracting frame from video at {frame_time:.2f}s (first segment)")
+                else:
+                    reference_frame_path = self._extract_first_frame(source_video)
+                    temp_paths.append(reference_frame_path)
+                    print(f"Extracting first frame from video (first segment, no frame_time)")
             
             # Build inpainting instruction
             extra_instruction = self._build_inpaint_instruction(reference_frame_path)
@@ -776,17 +784,22 @@ class VideoGenerationService:
             # Single segment video (5 seconds or less): use simple inpainting
             print(f"\nSingle segment video. Using simple inpainting...")
             
-            # Priority: 1) provided reference_path, 2) provided frame_path, 3) extract from video
+            # Priority: 1) provided reference_path, 2) extract from video at frame_time, 3) extract first frame
             if reference_path:
                 reference, ref_cleanup = self._prepare_reference(reference_path)
                 temp_paths.extend(ref_cleanup)
                 print(f"Using provided reference asset: {reference_path}")
-            elif frame_path:
-                reference = frame_path
-                print(f"Using provided frame: {frame_path}")
+            elif frame_time is not None:
+                # Extract frame from video at the specified timestamp
+                reference = self._extract_frame_at_time(source_video, frame_time)
+                temp_paths.append(reference)
+                print(f"Extracting frame from video at {frame_time:.2f}s")
+                print(f"Extracted frame: {reference}")
             else:
+                # Fallback to first frame if no frame_time provided
                 reference = self._extract_first_frame(source_video)
-                print("No frame provided, extracting first frame from video...")
+                temp_paths.append(reference)
+                print("No frame_time provided, extracting first frame from video...")
                 print(f"Extracted frame: {reference}")
 
             extra_instruction = self._build_inpaint_instruction(reference)
@@ -1071,7 +1084,7 @@ def create_app(config_path: str, device_index: int) -> FastAPI:
                 video_prompt,
                 audio_prompt,
                 source_video_path,
-                frame_path,
+                None,  # frame_path is no longer used - we extract from video using frame_time
                 original_prompt,
                 original_audio_prompt,
                 original_video_length_float,
