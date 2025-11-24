@@ -672,27 +672,12 @@ class VideoGenerationService:
                 temp_paths.extend(ref_cleanup)
                 print(f"Using provided reference asset: {reference_path}")
             elif frame_path:
-        reference = frame_path
-                print(f"Using provided frame: {reference}")
+                reference = frame_path
+                print(f"Using provided frame: {frame_path}")
             else:
-            print("No frame provided, extracting first frame from video...")
-            reference = self._extract_first_frame(source_video)
-            temp_paths.append(reference)
-            print(f"Extracted frame: {reference}")
-
-        extra_instruction = self._build_inpaint_instruction(reference)
-        print(f"Inpainting instruction: {extra_instruction}")
-
-            # Combine original prompt with inpainting prompt and bounding box instruction
-            combined_video_prompt_parts = []
-            if original_prompt:
-                combined_video_prompt_parts.append(original_prompt.strip())
-            combined_video_prompt_parts.append(video_prompt.strip())
-            if extra_instruction:
-                combined_video_prompt_parts.append(extra_instruction.strip())
-            combined_video_prompt = ". ".join(part for part in combined_video_prompt_parts if part)
-            
-            print(f"Combined video prompt: {combined_video_prompt}")
+                reference = self._extract_first_frame(source_video)
+                print("No frame provided, extracting first frame from video...")
+                print(f"Extracted frame: {reference}")
 
             # Use inpainting audio prompt if provided, otherwise use original audio prompt
             final_audio_prompt = audio_prompt if audio_prompt else original_audio_prompt
