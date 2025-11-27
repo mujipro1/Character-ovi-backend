@@ -696,6 +696,18 @@ class VideoGenerationService:
             print(f"Replacing segment {segment_index + 1} in original video...")
             print(f"Original video shape: {original_video.shape}")
             print(f"Regenerated segment shape: {regenerated_video.shape}")
+            
+            # Resize regenerated segment to match original video resolution if needed
+            original_height = original_video.shape[2]
+            original_width = original_video.shape[3]
+            regenerated_height = regenerated_video.shape[2]
+            regenerated_width = regenerated_video.shape[3]
+            
+            if regenerated_height != original_height or regenerated_width != original_width:
+                print(f"Resizing regenerated segment from {regenerated_width}x{regenerated_height} to {original_width}x{original_height}")
+                regenerated_video = self._resize_video_segment(regenerated_video, original_height, original_width)
+                print(f"Resized regenerated segment shape: {regenerated_video.shape}")
+            
             print(f"Replacing frames {segment_start_frame} to {segment_start_frame + regenerated_video.shape[1]}")
             
             # Ensure we don't exceed original video bounds
@@ -856,6 +868,48 @@ class VideoGenerationService:
             frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             cv2.imwrite(str(temp_file), frame_bgr)
             return temp_file
+
+    def _resize_video_segment(self, video_array: np.ndarray, target_height: int, target_width: int) -> np.ndarray:
+        """
+        Resize a video array to match target dimensions.
+        
+        Args:
+            video_array: Video array with shape (C, F, H, W), values in [-1, 1] range
+            target_height: Target height
+            target_width: Target width
+        
+        Returns:
+            Resized video array with shape (C, F, target_height, target_width)
+        """
+        C, F, H, W = video_array.shape
+        
+        # If already the correct size, return as is
+        if H == target_height and W == target_width:
+            return video_array
+        
+        # Convert from [-1, 1] to [0, 255] for cv2
+        video_normalized = ((video_array + 1) / 2 * 255).astype(np.uint8)
+        
+        # Resize each frame
+        resized_frames = []
+        for frame_idx in range(F):
+            # Get frame: (C, H, W) -> (H, W, C)
+            frame = video_normalized[:, frame_idx, :, :].transpose(1, 2, 0)
+            
+            # Resize using cv2
+            resized_frame = cv2.resize(frame, (target_width, target_height), interpolation=cv2.INTER_LINEAR)
+            
+            # Convert back to (C, H, W)
+            resized_frame = resized_frame.transpose(2, 0, 1)
+            resized_frames.append(resized_frame)
+        
+        # Stack frames: list of (C, H, W) -> (C, F, H, W)
+        resized_video = np.stack(resized_frames, axis=1)
+        
+        # Convert back to [-1, 1] range
+        resized_video = (resized_video.astype(np.float32) / 255.0) * 2.0 - 1.0
+        
+        return resized_video
 
     def _extract_segment_from_video(self, video_array: np.ndarray, start_frame: int, end_frame: int) -> np.ndarray:
         """
