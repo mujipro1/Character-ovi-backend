@@ -576,6 +576,15 @@ class VideoGenerationService:
             # Load the original video
             print("Loading original video...")
             original_video, original_audio = self._load_video_as_numpy(source_video)
+            
+            # Ensure original_video is a numpy array
+            if not isinstance(original_video, np.ndarray):
+                if hasattr(original_video, 'cpu'):
+                    # It's a torch tensor
+                    original_video = original_video.cpu().numpy()
+                else:
+                    original_video = np.array(original_video)
+            
             original_frames = original_video.shape[1]
             original_total_frames = int(original_video_length * self._fps)
             
@@ -676,6 +685,14 @@ class VideoGenerationService:
             
             if regenerated_video is None:
                 raise RuntimeError("Segment regeneration failed.")
+            
+            # Ensure regenerated_video is a numpy array
+            if not isinstance(regenerated_video, np.ndarray):
+                if hasattr(regenerated_video, 'cpu'):
+                    # It's a torch tensor
+                    regenerated_video = regenerated_video.cpu().numpy()
+                else:
+                    regenerated_video = np.array(regenerated_video)
             
             # Trim regenerated segment to match original segment length
             regenerated_frames = regenerated_video.shape[1]
@@ -881,10 +898,18 @@ class VideoGenerationService:
         Returns:
             Resized video array with shape (C, F, target_height, target_width)
         """
+        # Ensure video_array is a numpy array
+        if not isinstance(video_array, np.ndarray):
+            video_array = np.array(video_array)
+        
         C, F, H, W = video_array.shape
         
         # If already the correct size, return as is
         if H == target_height and W == target_width:
+            return video_array
+        
+        # Handle edge case: no frames
+        if F == 0:
             return video_array
         
         # Convert from [-1, 1] to [0, 255] for cv2
@@ -896,15 +921,64 @@ class VideoGenerationService:
             # Get frame: (C, H, W) -> (H, W, C)
             frame = video_normalized[:, frame_idx, :, :].transpose(1, 2, 0)
             
+            # Ensure frame is contiguous and properly shaped
+            if not frame.flags['C_CONTIGUOUS']:
+                frame = np.ascontiguousarray(frame)
+            
             # Resize using cv2
             resized_frame = cv2.resize(frame, (target_width, target_height), interpolation=cv2.INTER_LINEAR)
             
             # Convert back to (C, H, W)
             resized_frame = resized_frame.transpose(2, 0, 1)
+            
+            # Ensure it's a proper numpy array with correct dtype
+            resized_frame = np.asarray(resized_frame, dtype=np.uint8)
+            
+            # Verify shape is correct
+            if resized_frame.shape != (C, target_height, target_width):
+                raise ValueError(
+                    f"Frame {frame_idx} has incorrect shape after resize: "
+                    f"expected ({C}, {target_height}, {target_width}), got {resized_frame.shape}"
+                )
+            
             resized_frames.append(resized_frame)
         
+        # Ensure we have frames to stack
+        if len(resized_frames) == 0:
+            raise ValueError(f"No frames to resize. Original video had {F} frames.")
+        
         # Stack frames: list of (C, H, W) -> (C, F, H, W)
-        resized_video = np.stack(resized_frames, axis=1)
+        # Ensure all frames are numpy arrays with consistent dtype and shape
+        frames_to_stack = []
+        for idx, frame in enumerate(resized_frames):
+            # Ensure it's a numpy array
+            if not isinstance(frame, np.ndarray):
+                frame = np.asarray(frame, dtype=np.uint8)
+            # Ensure consistent dtype
+            if frame.dtype != np.uint8:
+                frame = frame.astype(np.uint8)
+            # Ensure correct shape
+            if frame.shape != (C, target_height, target_width):
+                raise ValueError(
+                    f"Frame {idx} has incorrect shape: "
+                    f"expected ({C}, {target_height}, {target_width}), got {frame.shape}"
+                )
+            frames_to_stack.append(frame)
+        
+        # Now stack using the properly formatted list
+        try:
+            # np.stack accepts both list and tuple, but let's use list explicitly
+            resized_video = np.stack(frames_to_stack, axis=1)
+        except (ValueError, TypeError) as e:
+            # If stacking fails, provide more detailed error information
+            shapes = [f.shape for f in frames_to_stack]
+            dtypes = [f.dtype for f in frames_to_stack]
+            raise ValueError(
+                f"Failed to stack {len(frames_to_stack)} frames. "
+                f"Frame shapes: {shapes}, dtypes: {dtypes}. "
+                f"Target shape: ({C}, {target_height}, {target_width}). "
+                f"Original error: {e}"
+            ) from e
         
         # Convert back to [-1, 1] range
         resized_video = (resized_video.astype(np.float32) / 255.0) * 2.0 - 1.0
