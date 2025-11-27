@@ -215,51 +215,8 @@ class VideoGenerationService:
             return reference_path, cleanup
         raise HTTPException(status_code=400, detail="Unsupported reference file type. Provide an image or video.")
 
-    def _detect_bounding_box(self, frame_path: Path) -> Optional[Tuple[int, int, int, int, int, int]]:
-        image = cv2.imread(str(frame_path))
-        if image is None:
-            return None
-
-        height, width = image.shape[:2]
-        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-
-        lower_red1 = np.array([0, 70, 70])
-        upper_red1 = np.array([10, 255, 255])
-        lower_red2 = np.array([170, 70, 70])
-        upper_red2 = np.array([180, 255, 255])
-
-        mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
-        mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
-        mask = cv2.bitwise_or(mask1, mask2)
-
-        kernel = np.ones((5, 5), np.uint8)
-        mask = cv2.dilate(mask, kernel, iterations=1)
-
-        coords = cv2.findNonZero(mask)
-        if coords is None or coords.size == 0:
-            return None
-
-        x_min, y_min, box_width, box_height = cv2.boundingRect(coords)
-        x_max = x_min + box_width
-        y_max = y_min + box_height
-        return x_min, y_min, x_max, y_max, width, height
-
     def _build_inpaint_instruction(self, frame_path: Path) -> str:
-        detection = self._detect_bounding_box(frame_path)
-        if detection is None:
-            return INPAINT_FALLBACK_INSTRUCTION
-
-        x_min, y_min, x_max, y_max, width, height = detection
-        x_min_pct = (x_min / max(width, 1)) * 100
-        x_max_pct = (x_max / max(width, 1)) * 100
-        y_min_pct = (y_min / max(height, 1)) * 100
-        y_max_pct = (y_max / max(height, 1)) * 100
-
-        return (
-            "Focus edits within the boxed region (horizontal "
-            f"{x_min_pct:.1f}%–{x_max_pct:.1f}%, vertical {y_min_pct:.1f}%–{y_max_pct:.1f}%) "
-            "and preserve everything outside the box exactly as in the reference frame."
-        )
+        return INPAINT_FALLBACK_INSTRUCTION
 
     def _generate_segments(
         self,
