@@ -1058,7 +1058,7 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="OVI FastAPI server")
     parser.add_argument("--config", type=str, default="ovi/configs/inference/inference_fusion.yaml", help="Path to inference configuration YAML.")
     parser.add_argument("--host", type=str, default="0.0.0.0", help="Host for FastAPI server.")
-    parser.add_argument("--port", type=int, default=8001, help="Port for FastAPI server.")
+    parser.add_argument("--port", type=int, default=8000, help="Port for FastAPI server.")
     parser.add_argument("--device-index", type=int, default=0, help="GPU device index to use.")
     return parser.parse_args()
 
