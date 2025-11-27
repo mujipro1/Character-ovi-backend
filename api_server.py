@@ -1047,21 +1047,64 @@ class VideoGenerationService:
             print(f"✓ Video array created successfully: shape {video_array.shape}")
             
             # Get audio if available
+            print(f"STEP: Processing audio...")
             audio_array = None
             if clip.audio is not None:
-                audio_array = clip.audio.to_soundarray(fps=self._sample_rate)
+                print(f"  Audio is available, extracting...")
+                try:
+                    audio_array = clip.audio.to_soundarray(fps=self._sample_rate)
+                    print(f"  Audio extracted, type: {type(audio_array)}, shape: {audio_array.shape if hasattr(audio_array, 'shape') else 'N/A'}")
+                except Exception as e:
+                    print(f"  ERROR extracting audio: {e}")
+                    raise
+                
+                # Ensure audio_array is a numpy array
+                print(f"  Ensuring audio_array is numpy array...")
+                if not isinstance(audio_array, np.ndarray):
+                    print(f"  Converting to numpy array...")
+                    if hasattr(audio_array, 'numpy'):
+                        audio_array = audio_array.numpy()
+                    else:
+                        audio_array = np.asarray(audio_array)
+                    print(f"  Converted, type: {type(audio_array)}, shape: {audio_array.shape}")
+                
+                # Ensure it's a proper numpy array
+                audio_array = np.array(audio_array, copy=False)
+                print(f"  After np.array(), shape: {audio_array.shape}, dtype: {audio_array.dtype}")
+                
                 # Normalize to [-1, 1] if needed
+                print(f"  Normalizing audio...")
                 if audio_array.max() > 1.0 or audio_array.min() < -1.0:
                     # Already in correct range or needs normalization
                     if audio_array.max() > 1.0:
+                        print(f"  Normalizing from [0, 255] to [-1, 1]...")
                         audio_array = audio_array / 255.0 * 2.0 - 1.0
+                    else:
+                        print(f"  Audio already in correct range")
+                
                 # Convert to mono if stereo
+                print(f"  Checking if stereo conversion needed...")
+                print(f"  audio_array.ndim: {audio_array.ndim}")
                 if audio_array.ndim == 2:
+                    print(f"  Audio is 2D, shape: {audio_array.shape}")
                     if audio_array.shape[0] == 2:
-                        audio_array = audio_array.mean(axis=0)
+                        print(f"  Converting stereo (channels first) to mono using mean(axis=0)...")
+                        audio_array = np.array(audio_array.mean(axis=0), copy=True)
+                        print(f"  After conversion, shape: {audio_array.shape}")
                     elif audio_array.shape[1] == 2:
-                        audio_array = audio_array.mean(axis=1)
-            print(f"✓ Audio array created successfully: shape {audio_array.shape}")
+                        print(f"  Converting stereo (channels last) to mono using mean(axis=1)...")
+                        audio_array = np.array(audio_array.mean(axis=1), copy=True)
+                        print(f"  After conversion, shape: {audio_array.shape}")
+                    else:
+                        print(f"  Audio is 2D but not stereo, keeping as is")
+                else:
+                    print(f"  Audio is {audio_array.ndim}D, no conversion needed")
+                
+                print(f"  Final audio_array shape: {audio_array.shape}, dtype: {audio_array.dtype}")
+            else:
+                print(f"  No audio available in video")
+            
+            print(f"✓ Audio array created successfully: shape {audio_array.shape if audio_array is not None else 'None'}")
             return video_array, audio_array
 
     def _extract_frame_at_time(self, video_path: Path, time_seconds: float) -> Path:
