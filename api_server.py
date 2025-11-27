@@ -157,54 +157,99 @@ class VideoGenerationService:
         Returns:
             Path to the saved frame file
         """
+        print(f"Extracting frame from numpy array...")
+        print(f"  Input video_numpy type: {type(video_numpy)}")
+        print(f"  Input video_numpy shape: {video_numpy.shape if hasattr(video_numpy, 'shape') else 'N/A'}")
+        
+        # Ensure video_numpy is a numpy array
+        if not isinstance(video_numpy, np.ndarray):
+            print(f"  Converting to numpy array...")
+            if hasattr(video_numpy, 'cpu'):
+                video_numpy = video_numpy.cpu().numpy()
+            elif hasattr(video_numpy, 'numpy'):
+                video_numpy = video_numpy.numpy()
+            else:
+                video_numpy = np.asarray(video_numpy)
+            print(f"  Converted to numpy array, shape: {video_numpy.shape}")
+        
+        # Ensure it's a proper numpy array (not a view)
+        video_numpy = np.array(video_numpy, copy=False)
+        
+        # Verify shape
+        if video_numpy.ndim != 4:
+            raise ValueError(f"Expected 4D array (C, F, H, W), got {video_numpy.ndim}D with shape {video_numpy.shape}")
+        
         # Ensure frame_index is valid
         num_frames = video_numpy.shape[1]
         if frame_index < 0:
             frame_index = num_frames + frame_index
         frame_index = max(0, min(frame_index, num_frames - 1))
         
+        print(f"  Extracting frame {frame_index} from {num_frames} frames")
+        
         # Extract the frame: (C, F, H, W) -> (C, H, W)
-        frame = video_numpy[:, frame_index, :, :]
+        # Use copy to ensure it's a proper independent array
+        frame = np.array(video_numpy[:, frame_index, :, :], copy=True)
+        
+        print(f"  Extracted frame shape: {frame.shape}")
         
         # Ensure frame is a numpy array
         if not isinstance(frame, np.ndarray):
-            frame = np.array(frame)
+            frame = np.asarray(frame)
         
+        print(f"  Reordering frame to (H, W, C)...")
         # Reorder to (H, W, C)
         if frame.shape[0] == 3:
+            print(f"  Frame has 3 channels, transposing...")
             frame = frame.transpose(1, 2, 0)  # (3, H, W) -> (H, W, 3)
+            print(f"  After transpose, shape: {frame.shape}")
         else:
+            print(f"  Frame has {frame.shape[0]} channels, treating as grayscale...")
             # Grayscale: (1, H, W) or (H, W)
             if frame.ndim == 3:
+                print(f"  Squeezing dimension 0...")
                 frame = frame.squeeze(0)  # (1, H, W) -> (H, W)
+                print(f"  After squeeze, shape: {frame.shape}")
             
-            # Ensure frame is 2D before stacking
+            # Ensure frame is 2D before converting to RGB
             if frame.ndim != 2:
                 raise ValueError(f"Expected 2D frame after squeeze, got shape {frame.shape}")
             
+            print(f"  Converting grayscale to RGB...")
             # Convert grayscale to RGB by creating a 3-channel array directly (no stacking)
             # Pre-allocate RGB array and fill with grayscale values
             H, W = frame.shape
+            print(f"  Creating RGB array of shape ({H}, {W}, 3)...")
             frame_rgb = np.zeros((H, W, 3), dtype=frame.dtype)
+            print(f"  Filling RGB channels...")
             frame_rgb[:, :, 0] = frame
             frame_rgb[:, :, 1] = frame
             frame_rgb[:, :, 2] = frame
             frame = frame_rgb  # (H, W) -> (H, W, 3)
+            print(f"  RGB conversion complete, shape: {frame.shape}")
         
+        print(f"  Normalizing frame to [0, 255]...")
         # Normalize to [0, 255] if needed
         if frame.max() <= 1.0:
+            print(f"  Frame values in [-1, 1] range, normalizing...")
             frame = np.clip(frame, -1, 1)
             frame = ((frame + 1) / 2 * 255).astype(np.uint8)
         else:
+            print(f"  Frame values already in [0, 255] range, clipping...")
             frame = np.clip(frame, 0, 255).astype(np.uint8)
+        print(f"  After normalization, shape: {frame.shape}, dtype: {frame.dtype}, min: {frame.min()}, max: {frame.max()}")
         
+        print(f"  Converting RGB to BGR for cv2...")
         # Convert RGB to BGR for cv2 (cv2 uses BGR)
         if frame.shape[2] == 3:
             frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            print(f"  BGR conversion complete")
         
+        print(f"  Saving frame to temporary file...")
         # Save to temporary file
         temp_file = Path(tempfile.NamedTemporaryFile(suffix=".png", delete=False).name)
         cv2.imwrite(str(temp_file), frame)
+        print(f"  ✓ Frame saved to: {temp_file}")
         return temp_file
 
     def _prepare_reference(self, reference_path: Optional[Path]) -> Tuple[Optional[Path], List[Path]]:
@@ -608,9 +653,19 @@ class VideoGenerationService:
                 # Use last frame from previous segment
                 prev_segment_end_frame = segment_start_frame
                 if prev_segment_end_frame > 0:
-                    reference_frame_path = self._save_frame_from_numpy(original_video, frame_index=prev_segment_end_frame - 1)
-                    temp_paths.append(reference_frame_path)
-                    print(f"Using last frame from previous segment (frame {prev_segment_end_frame - 1}) as reference")
+                    print(f"Extracting reference frame from previous segment...")
+                    print(f"  original_video type: {type(original_video)}")
+                    print(f"  original_video shape: {original_video.shape}")
+                    print(f"  Frame index to extract: {prev_segment_end_frame - 1}")
+                    try:
+                        reference_frame_path = self._save_frame_from_numpy(original_video, frame_index=prev_segment_end_frame - 1)
+                        temp_paths.append(reference_frame_path)
+                        print(f"✓ Successfully extracted frame from previous segment (frame {prev_segment_end_frame - 1})")
+                    except Exception as e:
+                        print(f"ERROR extracting frame from previous segment: {e}")
+                        print(f"  original_video type: {type(original_video)}")
+                        print(f"  original_video shape: {original_video.shape if hasattr(original_video, 'shape') else 'N/A'}")
+                        raise
                 else:
                     # Fallback: extract frame from video at frame_time
                     if frame_time is not None:
@@ -671,7 +726,13 @@ class VideoGenerationService:
                 extra_instruction=None,  # Already included
             )
             
+            print(f"STEP 1: Calling engine.generate()...")
+            print(f"  Reference frame: {reference_frame_path}")
+            print(f"  Video HW: {video_hw}")
+            print(f"  Seed: {base_seed + segment_index}")
+            
             with self._lock:
+                print(f"STEP 2: Inside lock, calling engine.generate()...")
                 regenerated_video, regenerated_audio, _ = self._engine.generate(
                     text_prompt=composed_prompt,
                     image_path=str(reference_frame_path),
@@ -686,38 +747,60 @@ class VideoGenerationService:
                     video_negative_prompt=video_negative_prompt,
                     audio_negative_prompt=audio_negative_prompt,
                 )
+                print(f"STEP 3: engine.generate() returned")
+                print(f"  regenerated_video type: {type(regenerated_video)}")
+                print(f"  regenerated_video is None: {regenerated_video is None}")
+                if regenerated_video is not None:
+                    print(f"  regenerated_video shape: {regenerated_video.shape if hasattr(regenerated_video, 'shape') else 'N/A'}")
             
             if regenerated_video is None:
                 raise RuntimeError("Segment regeneration failed.")
             
+            print(f"STEP 4: Converting regenerated_video to numpy array...")
             # Ensure regenerated_video is a numpy array with correct shape
             if not isinstance(regenerated_video, np.ndarray):
+                print(f"  regenerated_video is not numpy array, type: {type(regenerated_video)}")
                 if hasattr(regenerated_video, 'cpu'):
+                    print(f"  Converting from torch tensor...")
                     # It's a torch tensor
                     regenerated_video = regenerated_video.cpu().numpy()
                 elif hasattr(regenerated_video, 'numpy'):
+                    print(f"  Converting from tensorflow tensor...")
                     # It's a tensorflow tensor or similar
                     regenerated_video = regenerated_video.numpy()
                 else:
+                    print(f"  Converting using np.asarray...")
                     # Try to convert to numpy array
                     regenerated_video = np.asarray(regenerated_video)
+                print(f"  Converted, new type: {type(regenerated_video)}, shape: {regenerated_video.shape}")
+            else:
+                print(f"  regenerated_video is already numpy array")
             
+            print(f"STEP 5: Ensuring proper numpy array...")
             # Ensure it's a proper numpy array (not a view or reference)
             regenerated_video = np.array(regenerated_video, copy=False)
+            print(f"  After np.array(), shape: {regenerated_video.shape}, dtype: {regenerated_video.dtype}")
             
+            print(f"STEP 6: Verifying dimensions...")
             # Verify it has the expected 4D shape (C, F, H, W)
             if regenerated_video.ndim != 4:
                 raise ValueError(
                     f"Regenerated video must have 4 dimensions (C, F, H, W), "
                     f"got {regenerated_video.ndim} dimensions with shape {regenerated_video.shape}"
                 )
+            print(f"  ✓ Dimensions verified: {regenerated_video.ndim}D, shape {regenerated_video.shape}")
             
+            print(f"STEP 7: Trimming regenerated segment...")
             # Trim regenerated segment to match original segment length
             regenerated_frames = regenerated_video.shape[1]
             target_segment_frames = segment_end_frame - segment_start_frame
+            print(f"  regenerated_frames: {regenerated_frames}")
+            print(f"  target_segment_frames: {target_segment_frames}")
             
             if regenerated_frames > target_segment_frames:
+                print(f"  Trimming from {regenerated_frames} to {target_segment_frames} frames...")
                 regenerated_video = regenerated_video[:, :target_segment_frames, :, :]
+                print(f"  After trimming, shape: {regenerated_video.shape}")
                 if regenerated_audio is not None:
                     target_samples = int(segment_duration * self._sample_rate)
                     current_samples = regenerated_audio.shape[0] if regenerated_audio.ndim == 1 else regenerated_audio.shape[1]
@@ -726,17 +809,24 @@ class VideoGenerationService:
                             regenerated_audio = regenerated_audio[:target_samples]
                         else:
                             regenerated_audio = regenerated_audio[:, :target_samples]
+            else:
+                print(f"  No trimming needed")
             
+            print(f"STEP 8: Replacing segment in original video...")
             # Replace the segment in the original video
-            print(f"Replacing segment {segment_index + 1} in original video...")
-            print(f"Original video shape: {original_video.shape}")
-            print(f"Regenerated segment shape: {regenerated_video.shape}")
+            print(f"  Original video shape: {original_video.shape}")
+            print(f"  Original video type: {type(original_video)}")
+            print(f"  Regenerated segment shape: {regenerated_video.shape}")
+            print(f"  Regenerated segment type: {type(regenerated_video)}")
             
+            print(f"STEP 9: Verifying resolution match...")
             # Verify dimensions match (model should generate same size)
             original_height = original_video.shape[2]
             original_width = original_video.shape[3]
             regenerated_height = regenerated_video.shape[2]
             regenerated_width = regenerated_video.shape[3]
+            print(f"  Original: {original_width}x{original_height}")
+            print(f"  Regenerated: {regenerated_width}x{regenerated_height}")
             
             if regenerated_height != original_height or regenerated_width != original_width:
                 raise ValueError(
@@ -744,30 +834,63 @@ class VideoGenerationService:
                     f"does not match original video ({original_width}x{original_height}). "
                     f"This should not happen if model generates segments at the same resolution."
                 )
+            print(f"  ✓ Resolution matches")
             
-            print(f"Replacing frames {segment_start_frame} to {segment_start_frame + regenerated_video.shape[1]}")
+            print(f"STEP 10: Calculating frame ranges...")
+            print(f"  segment_start_frame: {segment_start_frame}")
+            print(f"  regenerated_video.shape[1]: {regenerated_video.shape[1]}")
+            print(f"  original_video.shape[1]: {original_video.shape[1]}")
             
             # Ensure we don't exceed original video bounds
             actual_end_frame = min(segment_start_frame + regenerated_video.shape[1], original_video.shape[1])
             actual_segment_frames = actual_end_frame - segment_start_frame
+            print(f"  actual_end_frame: {actual_end_frame}")
+            print(f"  actual_segment_frames: {actual_segment_frames}")
+            
+            print(f"STEP 11: Replacing segment in original_video array...")
+            print(f"  Assignment: original_video[:, {segment_start_frame}:{actual_end_frame}, :, :] = regenerated_video[:, :{actual_segment_frames}, :, :]")
+            print(f"  Left side shape: {original_video[:, segment_start_frame:actual_end_frame, :, :].shape}")
+            print(f"  Right side shape: {regenerated_video[:, :actual_segment_frames, :, :].shape}")
             
             # Replace the segment
-            original_video[:, segment_start_frame:actual_end_frame, :, :] = regenerated_video[:, :actual_segment_frames, :, :]
+            try:
+                original_video[:, segment_start_frame:actual_end_frame, :, :] = regenerated_video[:, :actual_segment_frames, :, :]
+                print(f"  ✓ Segment replaced successfully")
+            except Exception as e:
+                print(f"  ERROR during segment replacement: {e}")
+                print(f"    original_video type: {type(original_video)}")
+                print(f"    original_video shape: {original_video.shape}")
+                print(f"    regenerated_video type: {type(regenerated_video)}")
+                print(f"    regenerated_video shape: {regenerated_video.shape}")
+                raise
             
+            print(f"STEP 12: Replacing audio segment...")
             # Replace audio segment if available
             if regenerated_audio is not None and original_audio is not None:
+                print(f"  Both audio arrays available")
                 segment_start_sample = int(segment_start_time * self._sample_rate)
                 segment_end_sample = int(segment_end_time * self._sample_rate)
                 segment_end_sample = min(segment_end_sample, original_audio.shape[0] if original_audio.ndim == 1 else original_audio.shape[1])
+                print(f"  segment_start_sample: {segment_start_sample}")
+                print(f"  segment_end_sample: {segment_end_sample}")
                 
+                print(f"  Normalizing regenerated audio...")
                 normalized_regenerated = self._normalize_audio(regenerated_audio)
+                print(f"  normalized_regenerated shape: {normalized_regenerated.shape}")
+                
                 if normalized_regenerated.ndim == 1:
                     actual_audio_samples = min(normalized_regenerated.shape[0], segment_end_sample - segment_start_sample)
+                    print(f"  Replacing 1D audio: {segment_start_sample} to {segment_start_sample + actual_audio_samples}")
                     original_audio[segment_start_sample:segment_start_sample + actual_audio_samples] = normalized_regenerated[:actual_audio_samples]
                 else:
                     actual_audio_samples = min(normalized_regenerated.shape[1], segment_end_sample - segment_start_sample)
+                    print(f"  Replacing 2D audio: {segment_start_sample} to {segment_start_sample + actual_audio_samples}")
                     original_audio[:, segment_start_sample:segment_start_sample + actual_audio_samples] = normalized_regenerated[:, :actual_audio_samples]
+                print(f"  ✓ Audio segment replaced")
+            else:
+                print(f"  Skipping audio replacement (regenerated_audio: {regenerated_audio is not None}, original_audio: {original_audio is not None})")
             
+            print(f"STEP 13: Saving modified video...")
             # Save the modified video
             stem_source = video_prompt or "inpainted_video"
             stem = "".join(ch for ch in stem_source[:24] if ch.isalnum() or ch in ("-", "_"))
@@ -776,15 +899,25 @@ class VideoGenerationService:
             unique_id = torch.randint(0, 10_000, (1,)).item()
             output_path = self._output_dir / f"{stem}_{os.getpid()}_{unique_id}.mp4"
             
-            print(f"\nSaving inpainted video to: {output_path}")
-            save_video(
-                output_path=str(output_path),
-                video_numpy=original_video,
-                audio_numpy=original_audio,
-                fps=self._fps,
-                sample_rate=self._sample_rate,
-            )
-            print(f"Video saved successfully!")
+            print(f"  Output path: {output_path}")
+            print(f"  original_video shape: {original_video.shape}")
+            print(f"  original_video type: {type(original_video)}")
+            print(f"  original_audio type: {type(original_audio)}")
+            print(f"  Calling save_video()...")
+            try:
+                save_video(
+                    output_path=str(output_path),
+                    video_numpy=original_video,
+                    audio_numpy=original_audio,
+                    fps=self._fps,
+                    sample_rate=self._sample_rate,
+                )
+                print(f"  ✓ Video saved successfully!")
+            except Exception as e:
+                print(f"  ERROR saving video: {e}")
+                print(f"    original_video type: {type(original_video)}")
+                print(f"    original_video shape: {original_video.shape if hasattr(original_video, 'shape') else 'N/A'}")
+                raise
             
         else:
             # Single segment video (5 seconds or less): use simple inpainting
