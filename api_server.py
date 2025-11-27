@@ -182,12 +182,14 @@ class VideoGenerationService:
             if frame.ndim != 2:
                 raise ValueError(f"Expected 2D frame after squeeze, got shape {frame.shape}")
             
-            # Convert grayscale to RGB by stacking three copies
-            # Ensure we pass a proper list/tuple to np.stack
-            frame_list = [np.array(frame, copy=True), np.array(frame, copy=True), np.array(frame, copy=True)]
-            # Convert to tuple to ensure it's a proper sequence
-            frame_tuple = tuple(frame_list)
-            frame = np.stack(frame_tuple, axis=-1)  # (H, W) -> (H, W, 3)
+            # Convert grayscale to RGB by creating a 3-channel array directly (no stacking)
+            # Pre-allocate RGB array and fill with grayscale values
+            H, W = frame.shape
+            frame_rgb = np.zeros((H, W, 3), dtype=frame.dtype)
+            frame_rgb[:, :, 0] = frame
+            frame_rgb[:, :, 1] = frame
+            frame_rgb[:, :, 2] = frame
+            frame = frame_rgb  # (H, W) -> (H, W, 3)
         
         # Normalize to [0, 255] if needed
         if frame.max() <= 1.0:
