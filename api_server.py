@@ -868,25 +868,61 @@ class VideoGenerationService:
             # Replace audio segment if available
             if regenerated_audio is not None and original_audio is not None:
                 print(f"  Both audio arrays available")
+                print(f"  original_audio shape: {original_audio.shape}, ndim: {original_audio.ndim}")
+                print(f"  regenerated_audio shape: {regenerated_audio.shape if hasattr(regenerated_audio, 'shape') else 'N/A'}")
+                
                 segment_start_sample = int(segment_start_time * self._sample_rate)
                 segment_end_sample = int(segment_end_time * self._sample_rate)
-                segment_end_sample = min(segment_end_sample, original_audio.shape[0] if original_audio.ndim == 1 else original_audio.shape[1])
+                
+                # Determine original_audio length based on dimensions
+                if original_audio.ndim == 1:
+                    original_audio_length = original_audio.shape[0]
+                else:
+                    original_audio_length = original_audio.shape[1] if original_audio.shape[0] <= 2 else original_audio.shape[0]
+                
+                segment_end_sample = min(segment_end_sample, original_audio_length)
                 print(f"  segment_start_sample: {segment_start_sample}")
                 print(f"  segment_end_sample: {segment_end_sample}")
+                print(f"  original_audio_length: {original_audio_length}")
                 
                 print(f"  Normalizing regenerated audio...")
                 normalized_regenerated = self._normalize_audio(regenerated_audio)
-                print(f"  normalized_regenerated shape: {normalized_regenerated.shape}")
+                print(f"  normalized_regenerated shape: {normalized_regenerated.shape}, ndim: {normalized_regenerated.ndim}")
                 
-                if normalized_regenerated.ndim == 1:
-                    actual_audio_samples = min(normalized_regenerated.shape[0], segment_end_sample - segment_start_sample)
-                    print(f"  Replacing 1D audio: {segment_start_sample} to {segment_start_sample + actual_audio_samples}")
-                    original_audio[segment_start_sample:segment_start_sample + actual_audio_samples] = normalized_regenerated[:actual_audio_samples]
-                else:
+                # Normalize original_audio to same format for consistent replacement
+                print(f"  Normalizing original_audio format...")
+                normalized_original = self._normalize_audio(original_audio)
+                print(f"  normalized_original shape: {normalized_original.shape}, ndim: {normalized_original.ndim}")
+                
+                # Both should now be 2D (channels, samples)
+                if normalized_regenerated.ndim == 2 and normalized_original.ndim == 2:
                     actual_audio_samples = min(normalized_regenerated.shape[1], segment_end_sample - segment_start_sample)
-                    print(f"  Replacing 2D audio: {segment_start_sample} to {segment_start_sample + actual_audio_samples}")
-                    original_audio[:, segment_start_sample:segment_start_sample + actual_audio_samples] = normalized_regenerated[:, :actual_audio_samples]
-                print(f"  ✓ Audio segment replaced")
+                    print(f"  Replacing 2D audio: samples {segment_start_sample} to {segment_start_sample + actual_audio_samples}")
+                    print(f"  normalized_original slice shape: {normalized_original[:, segment_start_sample:segment_start_sample + actual_audio_samples].shape}")
+                    print(f"  normalized_regenerated slice shape: {normalized_regenerated[:, :actual_audio_samples].shape}")
+                    
+                    # Replace the segment
+                    normalized_original[:, segment_start_sample:segment_start_sample + actual_audio_samples] = normalized_regenerated[:, :actual_audio_samples]
+                    
+                    # Convert back to original format
+                    if original_audio.ndim == 1:
+                        # Convert from (1, samples) back to (samples,)
+                        original_audio = normalized_original.squeeze(0)
+                    else:
+                        # Keep as (channels, samples)
+                        original_audio = normalized_original
+                    
+                    print(f"  ✓ Audio segment replaced, final original_audio shape: {original_audio.shape}")
+                elif normalized_regenerated.ndim == 1 and normalized_original.ndim == 1:
+                    actual_audio_samples = min(normalized_regenerated.shape[0], segment_end_sample - segment_start_sample)
+                    print(f"  Replacing 1D audio: samples {segment_start_sample} to {segment_start_sample + actual_audio_samples}")
+                    original_audio[segment_start_sample:segment_start_sample + actual_audio_samples] = normalized_regenerated[:actual_audio_samples]
+                    print(f"  ✓ Audio segment replaced")
+                else:
+                    raise ValueError(
+                        f"Audio dimension mismatch: normalized_regenerated.ndim={normalized_regenerated.ndim}, "
+                        f"normalized_original.ndim={normalized_original.ndim}"
+                    )
             else:
                 print(f"  Skipping audio replacement (regenerated_audio: {regenerated_audio is not None}, original_audio: {original_audio is not None})")
             
