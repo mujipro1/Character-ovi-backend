@@ -849,40 +849,67 @@ class VideoGenerationService:
         Returns:
             Tuple of (video_array, audio_array)
         """
+        print(f"Loading video from file: {video_path}")
         with VideoFileClip(str(video_path)) as clip:
-            # Get video frames
-            frames = []
+            print(f"✓ Video file opened successfully")
+            print(f"  Video duration: {clip.duration:.2f} seconds")
+            print(f"  Video FPS: {clip.fps}")
+            print(f"  Video size: {clip.size}")
+            
+            # Get video frames - collect first to determine dimensions
+            frame_list = []
+            first_frame = None
+            frame_count = 0
+            
+            print(f"Extracting frames at {self._fps} FPS...")
             for frame in clip.iter_frames(fps=self._fps, dtype='uint8'):
                 # Convert from (H, W, C) to (C, H, W)
                 frame = frame.transpose(2, 0, 1)
                 # Normalize from [0, 255] to [-1, 1]
                 frame = (frame.astype(np.float32) / 255.0) * 2.0 - 1.0
-                frames.append(frame)
+                
+                # Ensure it's a numpy array
+                frame = np.asarray(frame)
+                
+                if first_frame is None:
+                    first_frame = frame
+                    C, H, W = frame.shape
+                
+                frame_list.append(frame)
+                frame_count += 1
             
-            if not frames:
+            if frame_count == 0:
                 raise RuntimeError("Failed to load video frames")
             
-            # Ensure frames is a proper list and all elements are numpy arrays
-            if not isinstance(frames, list):
-                raise TypeError(f"frames must be a list, got {type(frames)}")
+            if first_frame is None:
+                raise RuntimeError("No frames loaded from video")
             
-            # Verify all frames are numpy arrays
-            for idx, frame in enumerate(frames):
+            print(f"✓ Extracted {frame_count} frames")
+            
+            # Pre-allocate array to avoid stacking issues
+            # Shape: (C, F, H, W)
+            C, H, W = first_frame.shape
+            print(f"  Frame dimensions: {C} channels, {H}x{W} pixels")
+            print(f"  Video array shape: (C={C}, F={frame_count}, H={H}, W={W})")
+            
+            video_array = np.zeros((C, frame_count, H, W), dtype=np.float32)
+            
+            # Fill pre-allocated array directly
+            for idx, frame in enumerate(frame_list):
+                # Ensure frame is a numpy array
                 if not isinstance(frame, np.ndarray):
-                    frames[idx] = np.asarray(frame)
+                    frame = np.asarray(frame, dtype=np.float32)
+                
+                # Verify shape matches
+                if frame.shape != (C, H, W):
+                    raise ValueError(
+                        f"Frame {idx} has incorrect shape: expected ({C}, {H}, {W}), got {frame.shape}"
+                    )
+                
+                # Store directly in pre-allocated array (no stacking needed)
+                video_array[:, idx, :, :] = frame
             
-            # Stack frames: list of (C, H, W) -> (C, F, H, W)
-            # Convert to tuple to ensure it's a proper sequence
-            try:
-                frames_tuple = tuple(frames)
-                video_array = np.stack(frames_tuple, axis=1)
-            except (ValueError, TypeError) as e:
-                shapes = [f.shape for f in frames]
-                dtypes = [f.dtype for f in frames]
-                raise RuntimeError(
-                    f"Failed to stack {len(frames)} frames when loading video. "
-                    f"Frame shapes: {shapes}, dtypes: {dtypes}. Error: {e}"
-                ) from e
+            print(f"✓ Video array created successfully: shape {video_array.shape}")
             
             # Get audio if available
             audio_array = None
@@ -1132,32 +1159,60 @@ def create_app(config_path: str, device_index: int) -> FastAPI:
         frame_time: Optional[str] = Form(None),
         reference: Optional[UploadFile] = File(None),
     ):
+        print(f"\n{'='*60}")
+        print(f"INPAINT VIDEO API REQUEST RECEIVED")
+        print(f"{'='*60}")
+        print(f"Request Parameters:")
+        print(f"  video_prompt: {video_prompt}")
+        print(f"  audio_prompt: {audio_prompt}")
+        print(f"  original_prompt: {original_prompt}")
+        print(f"  original_audio_prompt: {original_audio_prompt}")
+        print(f"  original_video_length: {original_video_length}")
+        print(f"  frame_time: {frame_time}")
+        print(f"  generated_video filename: {generated_video.filename}")
+        print(f"  frame filename: {frame.filename if frame else None}")
+        print(f"  reference filename: {reference.filename if reference else None}")
+        print(f"{'='*60}\n")
+        
         temp_paths: List[Path] = []
         try:
+            print(f"Loading video from frontend...")
             source_video_path = Path(tempfile.NamedTemporaryFile(suffix=Path(generated_video.filename or '').suffix or ".mp4", delete=False).name)
+            video_size = 0
             with source_video_path.open("wb") as buffer:
-                buffer.write(await generated_video.read())
+                video_data = await generated_video.read()
+                buffer.write(video_data)
+                video_size = len(video_data)
             temp_paths.append(source_video_path)
+            print(f"✓ Video successfully loaded from frontend")
+            print(f"  Video path: {source_video_path}")
+            print(f"  Video size: {video_size / (1024*1024):.2f} MB")
+            print(f"  Video filename: {generated_video.filename}")
 
             frame_path: Optional[Path] = None
             if frame is not None:
                 frame_path = Path(tempfile.NamedTemporaryFile(suffix=Path(frame.filename or '').suffix or ".png", delete=False).name)
                 with frame_path.open("wb") as buffer:
-                    buffer.write(await frame.read())
+                    frame_data = await frame.read()
+                    buffer.write(frame_data)
                 temp_paths.append(frame_path)
+                print(f"✓ Frame image loaded: {frame_path} ({len(frame_data) / 1024:.2f} KB)")
 
             reference_path: Optional[Path] = None
             if reference is not None:
                 reference_path = Path(tempfile.NamedTemporaryFile(suffix=Path(reference.filename or '').suffix or ".dat", delete=False).name)
                 with reference_path.open("wb") as buffer:
-                    buffer.write(await reference.read())
+                    reference_data = await reference.read()
+                    buffer.write(reference_data)
                 temp_paths.append(reference_path)
+                print(f"✓ Reference asset loaded: {reference_path} ({len(reference_data) / 1024:.2f} KB)")
 
             # Convert string form parameters to float
             original_video_length_float = None
             if original_video_length is not None and original_video_length.strip():
                 try:
                     original_video_length_float = float(original_video_length)
+                    print(f"✓ Parsed original_video_length: {original_video_length_float:.2f} seconds")
                 except ValueError:
                     print(f"WARNING: Could not convert original_video_length '{original_video_length}' to float")
             
@@ -1165,8 +1220,11 @@ def create_app(config_path: str, device_index: int) -> FastAPI:
             if frame_time is not None and frame_time.strip():
                 try:
                     frame_time_float = float(frame_time)
+                    print(f"✓ Parsed frame_time: {frame_time_float:.2f} seconds")
                 except ValueError:
                     print(f"WARNING: Could not convert frame_time '{frame_time}' to float")
+            
+            print(f"\nAll request parameters processed. Starting inpainting...\n")
 
             output_path, additional_cleanup = await run_in_threadpool(
                 service.inpaint_video,
