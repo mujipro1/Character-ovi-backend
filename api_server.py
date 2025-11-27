@@ -27,7 +27,7 @@ VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
 DEFAULT_FPS = 24
 DEFAULT_SAMPLE_RATE = 16000
 INPAINT_FALLBACK_INSTRUCTION = (
-    "Apply inpainting only inside the highlighted region of the provided frame and leave the rest of the video untouched."
+    ""
 )
 
 
