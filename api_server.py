@@ -1052,11 +1052,57 @@ class VideoGenerationService:
             if clip.audio is not None:
                 print(f"  Audio is available, extracting...")
                 try:
-                    audio_array = clip.audio.to_soundarray(fps=self._sample_rate)
-                    print(f"  Audio extracted, type: {type(audio_array)}, shape: {audio_array.shape if hasattr(audio_array, 'shape') else 'N/A'}")
+                    # Use to_audiofile to extract to temp file, then load with scipy
+                    # This avoids the np.stack issue in to_soundarray
+                    import tempfile as tf
+                    with tf.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio_file:
+                        temp_audio_path = temp_audio_file.name
+                    
+                    print(f"  Extracting audio to temporary file: {temp_audio_path}")
+                    clip.audio.write_audiofile(temp_audio_path, fps=self._sample_rate, verbose=False, logger=None)
+                    
+                    print(f"  Loading audio from temporary file...")
+                    try:
+                        from scipy.io import wavfile
+                        sample_rate_loaded, audio_array = wavfile.read(temp_audio_path)
+                    except ImportError:
+                        # Fallback: use moviepy's audio reader if scipy not available
+                        print(f"  scipy not available, using alternative method...")
+                        audio_clip = VideoFileClip(temp_audio_path)
+                        audio_array = audio_clip.audio.to_soundarray(fps=self._sample_rate)
+                        sample_rate_loaded = self._sample_rate
+                        audio_clip.close()
+                    print(f"  Audio loaded, sample_rate: {sample_rate_loaded}, type: {type(audio_array)}, shape: {audio_array.shape}")
+                    
+                    # Clean up temp file
+                    try:
+                        os.unlink(temp_audio_path)
+                    except:
+                        pass
+                    
+                    # Convert to float32 in [-1, 1] range
+                    if audio_array.dtype == np.int16:
+                        audio_array = audio_array.astype(np.float32) / 32767.0
+                    elif audio_array.dtype == np.int32:
+                        audio_array = audio_array.astype(np.float32) / 2147483647.0
+                    elif audio_array.dtype == np.uint8:
+                        audio_array = (audio_array.astype(np.float32) / 255.0) * 2.0 - 1.0
+                    else:
+                        # Assume already in float format, normalize if needed
+                        if audio_array.max() > 1.0 or audio_array.min() < -1.0:
+                            audio_array = audio_array.astype(np.float32)
+                            if audio_array.max() > 1.0:
+                                audio_array = audio_array / audio_array.max()
+                    
+                    print(f"  Audio converted to float32, shape: {audio_array.shape}, range: [{audio_array.min():.3f}, {audio_array.max():.3f}]")
+                    
                 except Exception as e:
                     print(f"  ERROR extracting audio: {e}")
-                    raise
+                    import traceback
+                    print(f"  Traceback: {traceback.format_exc()}")
+                    # Set audio_array to None instead of raising - video can work without audio
+                    audio_array = None
+                    print(f"  Continuing without audio...")
                 
                 # Ensure audio_array is a numpy array
                 print(f"  Ensuring audio_array is numpy array...")
