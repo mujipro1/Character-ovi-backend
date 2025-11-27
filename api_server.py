@@ -730,16 +730,18 @@ class VideoGenerationService:
             print(f"Original video shape: {original_video.shape}")
             print(f"Regenerated segment shape: {regenerated_video.shape}")
             
-            # Resize regenerated segment to match original video resolution if needed
+            # Verify dimensions match (model should generate same size)
             original_height = original_video.shape[2]
             original_width = original_video.shape[3]
             regenerated_height = regenerated_video.shape[2]
             regenerated_width = regenerated_video.shape[3]
             
             if regenerated_height != original_height or regenerated_width != original_width:
-                print(f"Resizing regenerated segment from {regenerated_width}x{regenerated_height} to {original_width}x{original_height}")
-                regenerated_video = self._resize_video_segment(regenerated_video, original_height, original_width)
-                print(f"Resized regenerated segment shape: {regenerated_video.shape}")
+                raise ValueError(
+                    f"Resolution mismatch: regenerated segment ({regenerated_width}x{regenerated_height}) "
+                    f"does not match original video ({original_width}x{original_height}). "
+                    f"This should not happen if model generates segments at the same resolution."
+                )
             
             print(f"Replacing frames {segment_start_frame} to {segment_start_frame + regenerated_video.shape[1]}")
             
