@@ -625,7 +625,7 @@ class VideoGenerationService:
             # Load the original video
             print("Loading original video...")
             original_video, original_audio = self._load_video_as_numpy(source_video)
-            
+            print("HERE")
             # Ensure original_video is a numpy array
             if not isinstance(original_video, np.ndarray):
                 if hasattr(original_video, 'cpu'):
@@ -1061,7 +1061,7 @@ class VideoGenerationService:
                         audio_array = audio_array.mean(axis=0)
                     elif audio_array.shape[1] == 2:
                         audio_array = audio_array.mean(axis=1)
-            
+            print(f"✓ Audio array created successfully: shape {audio_array.shape}")
             return video_array, audio_array
 
     def _extract_frame_at_time(self, video_path: Path, time_seconds: float) -> Path:
