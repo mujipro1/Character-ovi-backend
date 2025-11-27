@@ -1,0 +1,46 @@
+# AMD ROCm-enabled Python image (works for AMD GPUs in Docker)
+FROM rocm/pytorch:latest
+
+# Set working directory
+WORKDIR /app
+
+# Install system deps
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-venv \
+    git \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone the repo
+RUN git clone https://github.com/mujipro1/Character-ovi-backend.git
+WORKDIR /app/Character-ovi-backend
+
+# Create a venv
+RUN python3 -m venv ovi-env
+ENV PATH="/app/Character-ovi-backend/ovi-env/bin:$PATH"
+
+# Install PyTorch CPU/GPU version automatically from rocm image
+RUN pip install --upgrade pip
+
+# Install project deps (no flash-attn for AMD)
+RUN pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/rocm6.0
+
+# Download model weights
+RUN python3 download_weights.py
+
+# Download FP8 model (if needed)
+RUN wget -O "./ckpts/Ovi/model_fp8_e4m3fn.safetensors" \
+    "https://huggingface.co/rkfg/Ovi-fp8_quantized/resolve/main/model_fp8_e4m3fn.safetensors"
+
+# Remove unwanted model files
+WORKDIR /app/Character-ovi-backend/ckpts/Ovi
+RUN rm -f model_960x960.safetensors \
+      model_960x960_10s.safetensors \
+      model.safetensors
+
+WORKDIR /app/Character-ovi-backend
+
+# Start server (change if needed)
+CMD ["python3", "api_server.py", "--config", "ovi/configs/inference/inference_fusion.yaml"]

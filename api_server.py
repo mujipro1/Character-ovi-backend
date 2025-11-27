@@ -184,8 +184,10 @@ class VideoGenerationService:
             
             # Convert grayscale to RGB by stacking three copies
             # Ensure we pass a proper list/tuple to np.stack
-            frame_list = [np.array(frame), np.array(frame), np.array(frame)]
-            frame = np.stack(frame_list, axis=-1)  # (H, W) -> (H, W, 3)
+            frame_list = [np.array(frame, copy=True), np.array(frame, copy=True), np.array(frame, copy=True)]
+            # Convert to tuple to ensure it's a proper sequence
+            frame_tuple = tuple(frame_list)
+            frame = np.stack(frame_tuple, axis=-1)  # (H, W) -> (H, W, 3)
         
         # Normalize to [0, 255] if needed
         if frame.max() <= 1.0:
@@ -844,8 +846,27 @@ class VideoGenerationService:
             if not frames:
                 raise RuntimeError("Failed to load video frames")
             
+            # Ensure frames is a proper list and all elements are numpy arrays
+            if not isinstance(frames, list):
+                raise TypeError(f"frames must be a list, got {type(frames)}")
+            
+            # Verify all frames are numpy arrays
+            for idx, frame in enumerate(frames):
+                if not isinstance(frame, np.ndarray):
+                    frames[idx] = np.asarray(frame)
+            
             # Stack frames: list of (C, H, W) -> (C, F, H, W)
-            video_array = np.stack(frames, axis=1)
+            # Convert to tuple to ensure it's a proper sequence
+            try:
+                frames_tuple = tuple(frames)
+                video_array = np.stack(frames_tuple, axis=1)
+            except (ValueError, TypeError) as e:
+                shapes = [f.shape for f in frames]
+                dtypes = [f.dtype for f in frames]
+                raise RuntimeError(
+                    f"Failed to stack {len(frames)} frames when loading video. "
+                    f"Frame shapes: {shapes}, dtypes: {dtypes}. Error: {e}"
+                ) from e
             
             # Get audio if available
             audio_array = None
@@ -916,7 +937,8 @@ class VideoGenerationService:
         video_normalized = ((video_array + 1) / 2 * 255).astype(np.uint8)
         
         # Resize each frame
-        resized_frames = []
+        # Initialize as a proper Python list
+        resized_frames: List[np.ndarray] = []
         for frame_idx in range(F):
             # Get frame: (C, H, W) -> (H, W, C)
             frame = video_normalized[:, frame_idx, :, :].transpose(1, 2, 0)
@@ -943,9 +965,17 @@ class VideoGenerationService:
             
             resized_frames.append(resized_frame)
         
-        # Ensure we have frames to stack
+        # Ensure we have frames to stack and resized_frames is a proper list
+        if not isinstance(resized_frames, list):
+            raise TypeError(f"resized_frames must be a list, got {type(resized_frames)}")
+        
         if len(resized_frames) == 0:
             raise ValueError(f"No frames to resize. Original video had {F} frames.")
+        
+        if len(resized_frames) != F:
+            raise ValueError(
+                f"Mismatch in frame count: expected {F} frames, got {len(resized_frames)}"
+            )
         
         # Stack frames: list of (C, H, W) -> (C, F, H, W)
         # Ensure all frames are numpy arrays with consistent dtype and shape
@@ -963,19 +993,35 @@ class VideoGenerationService:
                     f"Frame {idx} has incorrect shape: "
                     f"expected ({C}, {target_height}, {target_width}), got {frame.shape}"
                 )
+            # Make a copy to ensure it's a proper independent array
+            frame = np.array(frame, dtype=np.uint8, copy=True)
             frames_to_stack.append(frame)
         
+        # Ensure frames_to_stack is a proper list (not empty, all numpy arrays)
+        if not isinstance(frames_to_stack, (list, tuple)):
+            raise TypeError(f"frames_to_stack must be a list or tuple, got {type(frames_to_stack)}")
+        
+        if len(frames_to_stack) == 0:
+            raise ValueError(f"No frames to stack. Expected {F} frames.")
+        
+        # Verify all elements are numpy arrays
+        for idx, frame in enumerate(frames_to_stack):
+            if not isinstance(frame, np.ndarray):
+                raise TypeError(f"Frame {idx} is not a numpy array, got {type(frame)}")
+        
         # Now stack using the properly formatted list
+        # Convert to tuple explicitly to ensure it's a proper sequence
         try:
-            # np.stack accepts both list and tuple, but let's use list explicitly
-            resized_video = np.stack(frames_to_stack, axis=1)
+            frames_tuple = tuple(frames_to_stack)
+            resized_video = np.stack(frames_tuple, axis=1)
         except (ValueError, TypeError) as e:
             # If stacking fails, provide more detailed error information
             shapes = [f.shape for f in frames_to_stack]
             dtypes = [f.dtype for f in frames_to_stack]
+            types = [type(f).__name__ for f in frames_to_stack]
             raise ValueError(
                 f"Failed to stack {len(frames_to_stack)} frames. "
-                f"Frame shapes: {shapes}, dtypes: {dtypes}. "
+                f"Frame shapes: {shapes}, dtypes: {dtypes}, types: {types}. "
                 f"Target shape: ({C}, {target_height}, {target_width}). "
                 f"Original error: {e}"
             ) from e
@@ -1012,7 +1058,7 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="OVI FastAPI server")
     parser.add_argument("--config", type=str, default="ovi/configs/inference/inference_fusion.yaml", help="Path to inference configuration YAML.")
     parser.add_argument("--host", type=str, default="0.0.0.0", help="Host for FastAPI server.")
-    parser.add_argument("--port", type=int, default=8000, help="Port for FastAPI server.")
+    parser.add_argument("--port", type=int, default=8001, help="Port for FastAPI server.")
     parser.add_argument("--device-index", type=int, default=0, help="GPU device index to use.")
     return parser.parse_args()
 
