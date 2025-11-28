@@ -955,6 +955,9 @@ class VideoGenerationService:
                 print(f"    original_video shape: {original_video.shape if hasattr(original_video, 'shape') else 'N/A'}")
                 raise
             
+            print(f"{'='*60}\n")
+            return output_path, temp_paths
+            
         else:
             # Single segment video (5 seconds or less): use simple inpainting
             print(f"\nSingle segment video. Using simple inpainting...")
@@ -1003,7 +1006,7 @@ class VideoGenerationService:
                 reference_path=reference,
                 extra_instruction=None,  # Already included in combined_video_prompt
             )
-        temp_paths.extend(cleanup)
+            temp_paths.extend(cleanup)
         
         print(f"{'='*60}\n")
         return output_path, temp_paths
