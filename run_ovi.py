@@ -40,6 +40,52 @@ def container_running():
     )
     return result.stdout.strip() != ""
 
+def gpu_available():
+    """Check if GPU support is available in Docker."""
+    # First check if nvidia-smi is available on the host (NVIDIA GPU)
+    try:
+        result = subprocess.run(
+            ["nvidia-smi"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            # NVIDIA GPU detected on host, now check Docker support
+            try:
+                # Try to run a test container with GPU support
+                test_result = subprocess.run(
+                    ["docker", "run", "--rm", "--gpus", "all", "nvidia/cuda:11.0-base", "nvidia-smi"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                return test_result.returncode == 0
+            except:
+                return False
+    except:
+        pass
+    
+    # Check for AMD GPU (ROCm) - check if rocm-smi exists
+    try:
+        result = subprocess.run(
+            ["rocm-smi"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            # AMD GPU detected, but Docker GPU support for AMD is more complex
+            # Check if Docker has device access configured
+            # For now, we'll be conservative and return False unless explicitly configured
+            # The user can manually enable if they have ROCm Docker setup
+            return False
+    except:
+        pass
+    
+    # No GPU detected or Docker GPU support not configured
+    return False
+
 def build_image():
     """Build the Docker image from Dockerfile."""
     print("=" * 60)
@@ -138,15 +184,34 @@ if container_exists():
 
 # If container does not exist → create + run it
 print(f"Creating and starting container '{CONTAINER_NAME}'...")
-result = subprocess.run([
-    "docker", "run",
-    "--gpus", "all",
-    "-d",                                        # detached mode
-    "--restart=always",                          # auto-start at reboot
-    "-p", f"{HOST_PORT}:{CONTAINER_PORT}",
-    "--name", CONTAINER_NAME,
-    IMAGE_NAME
-], capture_output=True, text=True)
+
+# Check if GPU is available
+print("Checking GPU support...")
+has_gpu = gpu_available()
+
+if has_gpu:
+    print("✓ GPU support detected. Using GPU acceleration.")
+    docker_cmd = [
+        "docker", "run",
+        "--gpus", "all",
+        "-d",                                        # detached mode
+        "--restart=always",                          # auto-start at reboot
+        "-p", f"{HOST_PORT}:{CONTAINER_PORT}",
+        "--name", CONTAINER_NAME,
+        IMAGE_NAME
+    ]
+else:
+    print("⚠ GPU support not available. Running in CPU mode (slower but will work).")
+    docker_cmd = [
+        "docker", "run",
+        "-d",                                        # detached mode
+        "--restart=always",                          # auto-start at reboot
+        "-p", f"{HOST_PORT}:{CONTAINER_PORT}",
+        "--name", CONTAINER_NAME,
+        IMAGE_NAME
+    ]
+
+result = subprocess.run(docker_cmd, capture_output=True, text=True)
 
 if result.returncode == 0:
     print(f"✓ Container '{CONTAINER_NAME}' created and started!")
@@ -157,9 +222,36 @@ if result.returncode == 0:
     print(f"✓ API Documentation: http://localhost:{HOST_PORT}/docs")
     print("\nTo view logs: docker logs -f ovi-backend")
     print("To stop: docker stop ovi-backend")
+    if not has_gpu:
+        print("\n⚠ Running in CPU mode. Performance will be slower than GPU mode.")
     print("\nNote: First request may take longer as models are loaded into memory.")
 else:
     print(f"ERROR: Failed to create container: {result.stderr}")
-    if "gpus" in result.stderr.lower():
-        print("\nNote: If you don't have a GPU, remove '--gpus all' from the docker run command.")
-    sys.exit(1)
+    
+    # If it failed with GPU, try without GPU as fallback
+    if "--gpus" in ' '.join(docker_cmd) and "gpu" in result.stderr.lower():
+        print("\n⚠ GPU mode failed. Retrying in CPU mode...")
+        docker_cmd_cpu = [
+            "docker", "run",
+            "-d",
+            "--restart=always",
+            "-p", f"{HOST_PORT}:{CONTAINER_PORT}",
+            "--name", CONTAINER_NAME,
+            IMAGE_NAME
+        ]
+        result_cpu = subprocess.run(docker_cmd_cpu, capture_output=True, text=True)
+        
+        if result_cpu.returncode == 0:
+            print(f"✓ Container '{CONTAINER_NAME}' created and started in CPU mode!")
+            print(f"\nWaiting for API server to start...")
+            time.sleep(10)
+            print(f"\n✓ API Server should be available at: http://localhost:{HOST_PORT}")
+            print(f"✓ API Documentation: http://localhost:{HOST_PORT}/docs")
+            print("\n⚠ Running in CPU mode. Performance will be slower than GPU mode.")
+            print("\nTo view logs: docker logs -f ovi-backend")
+            print("To stop: docker stop ovi-backend")
+        else:
+            print(f"ERROR: Failed to create container even in CPU mode: {result_cpu.stderr}")
+            sys.exit(1)
+    else:
+        sys.exit(1)
