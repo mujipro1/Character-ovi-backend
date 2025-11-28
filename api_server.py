@@ -32,10 +32,20 @@ INPAINT_FALLBACK_INSTRUCTION = (
 
 
 def _ensure_cuda_device(device_index: int) -> int:
+    # Check for CUDA (NVIDIA) or ROCm (AMD) support
+    # ROCm PyTorch also reports torch.cuda.is_available() as True
     if not torch.cuda.is_available():
-        raise RuntimeError("CUDA/ROCm device is required. Please ensure PyTorch is installed with CUDA or ROCm support.")
+        # Try to use CPU mode as fallback (slower but will work)
+        print("WARNING: CUDA/ROCm not available. Falling back to CPU mode (very slow).")
+        print("For better performance, ensure GPU drivers and Docker GPU support are configured.")
+        return -1  # Return -1 to indicate CPU mode
     device_index = max(device_index, 0)
-    torch.cuda.set_device(device_index)
+    try:
+        torch.cuda.set_device(device_index)
+    except Exception as e:
+        print(f"WARNING: Could not set CUDA device {device_index}: {e}")
+        print("Falling back to CPU mode.")
+        return -1
     return device_index
 
 
@@ -83,7 +93,17 @@ class VideoGenerationService:
 
         target_dtype = torch.bfloat16
         print("Loading OviFusionEngine for API service...")
-        self._engine = OviFusionEngine(config=config, device=self._device_index, target_dtype=target_dtype)
+        # Handle CPU mode (device_index = -1)
+        engine_device = self._device_index if self._device_index >= 0 else 0
+        if self._device_index < 0:
+            print("WARNING: Running in CPU mode. This will be very slow.")
+            # Enable CPU offload mode for better memory management in CPU mode
+            # Create a mutable copy of config
+            config_dict = OmegaConf.to_container(self._base_config, resolve=True)
+            config_dict['cpu_offload'] = True
+            config = OmegaConf.create(config_dict)
+        
+        self._engine = OviFusionEngine(config=config, device=engine_device, target_dtype=target_dtype)
         print("OviFusionEngine loaded successfully.")
 
     @staticmethod

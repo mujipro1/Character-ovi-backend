@@ -17,6 +17,11 @@ RUN apt-get update && apt-get install -y \
 RUN git clone https://github.com/mujipro1/Character-ovi-backend.git
 WORKDIR /app/Character-ovi-backend
 
+# Patch t5.py to handle CPU/ROCm mode (fixes torch.cuda.current_device() issue)
+# This prevents the error when CUDA/ROCm is not available
+RUN python3 -c "import re; content = open('ovi/modules/t5.py', 'r').read(); content = re.sub(r'device=torch\.cuda\.current_device\(\)', r'device=0 if torch.cuda.is_available() else -1', content); open('ovi/modules/t5.py', 'w').write(content)" || \
+    sed -i 's/device=torch.cuda.current_device(),/device=0 if torch.cuda.is_available() else -1,/g' ovi/modules/t5.py
+
 # Create a venv
 RUN python3 -m venv ovi-env
 ENV PATH="/app/Character-ovi-backend/ovi-env/bin:$PATH"

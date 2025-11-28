@@ -91,6 +91,8 @@ def build_image():
     print("=" * 60)
     print("Building Docker image...")
     print("This may take several minutes on first run.")
+    print("The image includes all model weights and dependencies.")
+    print("After first build, restarts will be fast (no re-downloading).")
     print("=" * 60)
     
     # Get the directory where this script is located
