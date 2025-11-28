@@ -32,18 +32,8 @@ RUN pip install --upgrade pip
 # Install project deps (no flash-attn for AMD)
 RUN pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/rocm6.0
 
-# Download model weights
+# Download model weights (includes FP8 model, skips models that were previously deleted)
 RUN python3 download_weights.py
-
-# Download FP8 model (if needed)
-RUN wget -O "./ckpts/Ovi/model_fp8_e4m3fn.safetensors" \
-    "https://huggingface.co/rkfg/Ovi-fp8_quantized/resolve/main/model_fp8_e4m3fn.safetensors"
-
-# Remove unwanted model files
-WORKDIR /app/Character-ovi-backend/ckpts/Ovi
-RUN rm -f model_960x960.safetensors \
-      model_960x960_10s.safetensors \
-      model.safetensors
 
 WORKDIR /app/Character-ovi-backend
 
