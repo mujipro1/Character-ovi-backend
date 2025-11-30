@@ -51,14 +51,21 @@ NAME_TO_MODEL_SPECS_MAP = {
 class OviFusionEngine:
     def __init__(self, config=DEFAULT_CONFIG, device=0, target_dtype=torch.bfloat16):
         # Load fusion model
-        self.device = device
+        # Normalize device: if it's "cpu" string, keep it; if it's a device index, use it
+        if device == "cpu" or (isinstance(device, str) and device.lower() == "cpu"):
+            self.device = "cpu"
+            device_for_rank = "cpu"
+        else:
+            self.device = device
+            device_for_rank = device
+        
         self.target_dtype = target_dtype
         meta_init = True
-        self.cpu_offload = config.get("cpu_offload", False) or config.get("mode") == "t2i2v"
+        self.cpu_offload = config.get("cpu_offload", False) or config.get("mode") == "t2i2v" or device == "cpu"
         if self.cpu_offload:
             logging.info("CPU offloading is enabled. Initializing all models aside from VAEs on CPU")
 
-        model, video_config, audio_config = init_fusion_score_model_ovi(rank=device, meta_init=meta_init)
+        model, video_config, audio_config = init_fusion_score_model_ovi(rank=device_for_rank, meta_init=meta_init)
 
         fp8 = config.get("fp8", False)
         int8 = config.get("qint8", False)
@@ -68,23 +75,24 @@ class OviFusionEngine:
         if not meta_init:
             if not fp8:
                 model = model.to(dtype=target_dtype)
+            target_device = "cpu" if (self.cpu_offload or device == "cpu") else device
             model = (
-                model.to(device=device if not self.cpu_offload else "cpu")
+                model.to(device=target_device)
                 .eval()
             )
 
-        # Load VAEs
-        vae_model_video = init_wan_vae_2_2(config.ckpt_dir, rank=device)
+        # Load VAEs - pass device string for CPU mode, device index for GPU
+        vae_model_video = init_wan_vae_2_2(config.ckpt_dir, rank=device_for_rank)
         vae_model_video.model.requires_grad_(False).eval()
         vae_model_video.model = vae_model_video.model.bfloat16()
         self.vae_model_video = vae_model_video
 
-        vae_model_audio = init_mmaudio_vae(config.ckpt_dir, rank=device)
+        vae_model_audio = init_mmaudio_vae(config.ckpt_dir, rank=device_for_rank)
         vae_model_audio.requires_grad_(False).eval()
         self.vae_model_audio = vae_model_audio.bfloat16()
 
         # Load T5 text model
-        self.text_model = init_text_model(config.ckpt_dir, rank=device, cpu_offload=self.cpu_offload)
+        self.text_model = init_text_model(config.ckpt_dir, rank=device_for_rank, cpu_offload=self.cpu_offload)
         if config.get("shard_text_model", False):
             raise NotImplementedError("Sharding text model is not implemented yet.")
         if self.cpu_offload:

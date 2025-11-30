@@ -7,10 +7,35 @@ from ovi.modules.fusion import FusionModel
 from ovi.modules.t5 import T5EncoderModel
 from ovi.modules.vae2_2 import Wan2_2_VAE
 from ovi.modules.mmaudio.features_utils import FeaturesUtils
+
+def _normalize_device_for_model(device):
+    """
+    Normalize device to a format that can be used with PyTorch models.
+    Returns "cpu" for CPU mode, or device index/string for GPU.
+    """
+    if device == -1 or device == "cpu" or (isinstance(device, str) and device.lower() == "cpu"):
+        return "cpu"
+    
+    if isinstance(device, str):
+        # If it's already a device string like "cuda:0", return as is
+        return device
+    
+    if isinstance(device, int):
+        if device < 0:
+            return "cpu"
+        # For GPU, return the integer device index (will be converted to device string in model code)
+        if torch.cuda.is_available():
+            return device
+        else:
+            return "cpu"
+    
+    return device
     
 def init_wan_vae_2_2(ckpt_dir, rank=0):
     vae_config = {}
-    vae_config['device'] = rank
+    # Normalize device - convert to "cpu" string if CPU mode, otherwise use device index/string
+    normalized_device = _normalize_device_for_model(rank)
+    vae_config['device'] = normalized_device
     vae_pth = os.path.join(ckpt_dir, "Wan2.2-TI2V-5B/Wan2.2_VAE.pth")
     vae_config['vae_pth'] = vae_pth
     vae_model = Wan2_2_VAE(**vae_config)
@@ -28,11 +53,13 @@ def init_mmaudio_vae(ckpt_dir, rank=0):
     vae_config['tod_vae_ckpt'] = tod_vae_ckpt
     vae_config['bigvgan_vocoder_ckpt'] = bigvgan_vocoder_ckpt
 
-    vae = FeaturesUtils(**vae_config).to(rank)
+    # Normalize device for model.to() call
+    normalized_device = _normalize_device_for_model(rank)
+    vae = FeaturesUtils(**vae_config).to(normalized_device)
 
     return vae
 
-def init_fusion_score_model_ovi(rank: int = 0, meta_init=False):
+def init_fusion_score_model_ovi(rank = 0, meta_init=False):
     video_config = "ovi/configs/model/dit/video.json"
     audio_config = "ovi/configs/model/dit/audio.json"
     assert os.path.exists(video_config), f"{video_config} does not exist"
@@ -52,7 +79,8 @@ def init_fusion_score_model_ovi(rank: int = 0, meta_init=False):
     
     params_all = sum(p.numel() for p in fusion_model.parameters())
     
-    if rank == 0:
+    # Print parameter count if rank is 0 or if in CPU mode
+    if rank == 0 or rank == "cpu":
         print(
             f"Score model (Fusion) all parameters:{params_all}"
         )
@@ -64,10 +92,27 @@ def init_text_model(ckpt_dir, rank, cpu_offload=False):
     text_encoder_path = os.path.join(wan_dir, "models_t5_umt5-xxl-enc-bf16.pth")
     text_tokenizer_path = os.path.join(wan_dir, "google/umt5-xxl")
 
+    # Normalize device for T5 model - convert "cpu" string or handle device index
+    if rank == "cpu" or (isinstance(rank, str) and rank.lower() == "cpu"):
+        device_for_t5 = "cpu"
+        cpu_offload = True  # Force CPU offload for CPU mode
+    elif isinstance(rank, int) and rank < 0:
+        device_for_t5 = "cpu"
+        cpu_offload = True
+    elif isinstance(rank, int):
+        # Device index - check if CUDA/ROCm is available
+        if torch.cuda.is_available():
+            device_for_t5 = rank
+        else:
+            device_for_t5 = "cpu"
+            cpu_offload = True
+    else:
+        device_for_t5 = rank
+
     text_encoder = T5EncoderModel(
         text_len=512,
         dtype=torch.bfloat16,
-        device=rank,
+        device=device_for_t5,
         checkpoint_path=text_encoder_path,
         tokenizer_path=text_tokenizer_path,
         cpu_offload=cpu_offload,

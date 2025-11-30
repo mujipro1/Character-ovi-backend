@@ -475,12 +475,35 @@ class T5EncoderModel:
         self,
         text_len,
         dtype=torch.bfloat16,
-        device=torch.cuda.current_device(),
+        device=None,
         checkpoint_path=None,
         tokenizer_path=None,
         shard_fn=None,
         cpu_offload=False,
     ):
+        # Handle default device - avoid calling torch.cuda.current_device() if CUDA is not available
+        if device is None:
+            if torch.cuda.is_available():
+                try:
+                    device = torch.cuda.current_device()
+                except:
+                    device = "cpu"
+            else:
+                device = "cpu"
+        
+        # Normalize device: convert "cpu" string or handle device index
+        if device == "cpu" or (isinstance(device, str) and device.lower() == "cpu"):
+            device = "cpu"
+            cpu_offload = True  # Force CPU offload for CPU mode
+        elif isinstance(device, int) and device < 0:
+            device = "cpu"
+            cpu_offload = True
+        elif isinstance(device, int):
+            # Device index - check if CUDA/ROCm is available
+            if not torch.cuda.is_available():
+                device = "cpu"
+                cpu_offload = True
+        
         self.text_len = text_len
         self.dtype = dtype
         self.device = device
@@ -488,17 +511,18 @@ class T5EncoderModel:
         self.tokenizer_path = tokenizer_path
 
         # init model
+        target_device = "cpu" if cpu_offload else device
         model = umt5_xxl(
             encoder_only=True,
             return_tokenizer=False,
             dtype=dtype,
-            device=device if not cpu_offload else "cpu").eval().requires_grad_(False)
+            device=target_device).eval().requires_grad_(False)
         logging.info(f'loading {checkpoint_path}')
         model.load_state_dict(torch.load(checkpoint_path, map_location='cpu'))
         self.model = model
         if shard_fn is not None:
             self.model = shard_fn(self.model, sync_module_states=False)
-        elif not cpu_offload:
+        elif not cpu_offload and device != "cpu":
             self.model.to(self.device)
         # init tokenizer
         self.tokenizer = HuggingfaceTokenizer(

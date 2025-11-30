@@ -85,7 +85,9 @@ class FeaturesUtils(nn.Module):
 
     @torch.no_grad()
     def wrapped_decode(self, z):
-        with torch.amp.autocast('cuda', dtype=self.dtype):
+        # Determine autocast device type based on actual device
+        autocast_device_type = 'cpu' if str(self.device).startswith('cpu') else 'cuda'
+        with torch.amp.autocast(autocast_device_type, dtype=self.dtype):
             mel_decoded = self.decode(z)
             audio = self.vocode(mel_decoded)
 
@@ -93,7 +95,9 @@ class FeaturesUtils(nn.Module):
 
     @torch.no_grad()
     def wrapped_encode(self, audio):
-        with torch.amp.autocast('cuda', dtype=self.dtype):
+        # Determine autocast device type based on actual device
+        autocast_device_type = 'cpu' if str(self.device).startswith('cpu') else 'cuda'
+        with torch.amp.autocast(autocast_device_type, dtype=self.dtype):
             dist = self.encode_audio(audio)
 
             return dist.mean

@@ -31,6 +31,29 @@ INPAINT_FALLBACK_INSTRUCTION = (
 )
 
 
+def _normalize_device(device) -> str:
+    """
+    Normalize device to a string that can be used with PyTorch.
+    Handles CPU mode and GPU device indices.
+    Returns "cpu" for CPU mode, or device string like "cuda:0" for GPU.
+    """
+    if device == -1 or device == "cpu" or (isinstance(device, str) and device.lower() == "cpu"):
+        return "cpu"
+    
+    if isinstance(device, str):
+        return device
+    
+    if isinstance(device, int):
+        if device < 0:
+            return "cpu"
+        # Check if CUDA/ROCm is available
+        if torch.cuda.is_available():
+            return f"cuda:{device}"
+        else:
+            return "cpu"
+    
+    return str(device)
+
 def _ensure_cuda_device(device_index: int) -> int:
     # Check for CUDA (NVIDIA) or ROCm (AMD) support
     # ROCm PyTorch also reports torch.cuda.is_available() as True
@@ -43,7 +66,7 @@ def _ensure_cuda_device(device_index: int) -> int:
     try:
         torch.cuda.set_device(device_index)
     except Exception as e:
-        print(f"WARNING: Could not set CUDA device {device_index}: {e}")
+        print(f"WARNING: Could not set CUDA/ROCm device {device_index}: {e}")
         print("Falling back to CPU mode.")
         return -1
     return device_index
@@ -94,7 +117,7 @@ class VideoGenerationService:
         target_dtype = torch.bfloat16
         print("Loading OviFusionEngine for API service...")
         # Handle CPU mode (device_index = -1)
-        engine_device = self._device_index if self._device_index >= 0 else 0
+        # Normalize device to proper format (string for CPU, or device index for GPU)
         if self._device_index < 0:
             print("WARNING: Running in CPU mode. This will be very slow.")
             # Enable CPU offload mode for better memory management in CPU mode
@@ -102,6 +125,9 @@ class VideoGenerationService:
             config_dict = OmegaConf.to_container(self._base_config, resolve=True)
             config_dict['cpu_offload'] = True
             config = OmegaConf.create(config_dict)
+            engine_device = "cpu"
+        else:
+            engine_device = self._device_index
         
         self._engine = OviFusionEngine(config=config, device=engine_device, target_dtype=target_dtype)
         print("OviFusionEngine loaded successfully.")

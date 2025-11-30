@@ -897,9 +897,29 @@ class Wan2_2_VAE:
         dtype=torch.float,
         device="cuda",
     ):
+        # Normalize device: convert to torch.device object or string
+        # Handle CPU mode and GPU device indices
+        if device == -1 or device == "cpu" or (isinstance(device, str) and device.lower() == "cpu"):
+            self.device = "cpu"
+            self.device_obj = torch.device("cpu")
+        elif isinstance(device, int):
+            # Device index - check if CUDA/ROCm is available
+            if torch.cuda.is_available() and device >= 0:
+                self.device = f"cuda:{device}"
+                self.device_obj = torch.device(f"cuda:{device}")
+            else:
+                self.device = "cpu"
+                self.device_obj = torch.device("cpu")
+        elif isinstance(device, str):
+            # Already a device string like "cuda:0"
+            self.device = device
+            self.device_obj = torch.device(device)
+        else:
+            # Assume it's already a torch.device object
+            self.device = str(device)
+            self.device_obj = device if isinstance(device, torch.device) else torch.device(str(device))
 
         self.dtype = dtype
-        self.device = device
 
         mean = torch.tensor(
             [
@@ -953,7 +973,7 @@ class Wan2_2_VAE:
                 -0.0667,
             ],
             dtype=dtype,
-            device=device,
+            device=self.device_obj,
         )
         std = torch.tensor(
             [
@@ -1007,7 +1027,7 @@ class Wan2_2_VAE:
                 0.7744,
             ],
             dtype=dtype,
-            device=device,
+            device=self.device_obj,
         )
         self.scale = [mean, 1.0 / std]
 
@@ -1019,13 +1039,15 @@ class Wan2_2_VAE:
                 dim=c_dim,
                 dim_mult=dim_mult,
                 temperal_downsample=temperal_downsample,
-            ).eval().requires_grad_(False).to(device))
+            ).eval().requires_grad_(False).to(self.device_obj))
 
     def encode(self, videos):
         try:
             if not isinstance(videos, list):
                 raise TypeError("videos should be a list")
-            with amp.autocast('cuda', dtype=self.dtype):
+            # Use 'cpu' autocast when device is CPU, 'cuda' otherwise
+            autocast_device_type = 'cpu' if self.device == 'cpu' else 'cuda'
+            with amp.autocast(autocast_device_type, dtype=self.dtype):
                 return [
                     self.model.encode(u.unsqueeze(0),
                                       self.scale).float().squeeze(0)
@@ -1039,7 +1061,9 @@ class Wan2_2_VAE:
         try:
             if not isinstance(zs, list):
                 raise TypeError("zs should be a list")
-            with amp.autocast('cuda', dtype=self.dtype):
+            # Use 'cpu' autocast when device is CPU, 'cuda' otherwise
+            autocast_device_type = 'cpu' if self.device == 'cpu' else 'cuda'
+            with amp.autocast(autocast_device_type, dtype=self.dtype):
                 return [
                     self.model.decode(u.unsqueeze(0),
                                       self.scale).float().clamp_(-1,
@@ -1054,7 +1078,9 @@ class Wan2_2_VAE:
         try:
             if not isinstance(zs, torch.Tensor):
                 raise TypeError("zs should be a torch.Tensor")
-            with amp.autocast('cuda', dtype=self.dtype):
+            # Use 'cpu' autocast when device is CPU, 'cuda' otherwise
+            autocast_device_type = 'cpu' if self.device == 'cpu' else 'cuda'
+            with amp.autocast(autocast_device_type, dtype=self.dtype):
                 return self.model.decode(zs, self.scale).float().clamp_(-1,
                                                                  1)
 
@@ -1066,7 +1092,9 @@ class Wan2_2_VAE:
         try:
             if not isinstance(video, torch.Tensor):
                 raise TypeError("video should be a torch.Tensor")
-            with amp.autocast('cuda', dtype=self.dtype):
+            # Use 'cpu' autocast when device is CPU, 'cuda' otherwise
+            autocast_device_type = 'cpu' if self.device == 'cpu' else 'cuda'
+            with amp.autocast(autocast_device_type, dtype=self.dtype):
                 
                 return self.model.encode(video, self.scale).float()
 
