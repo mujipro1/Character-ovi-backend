@@ -9,9 +9,9 @@ sp_size: 1
 audio_guidance_scale: 3.0
 video_guidance_scale: 4.0
 mode: "i2v" # ["t2v", "i2v", "t2i2v"] all comes with audio
-fp8: False
+fp8: True
 qint8: True  # Enable 8-bit quantization for memory efficiency (works on AMD/ROCm)
-cpu_offload: True
+cpu_offload: False  # Set to False to use GPU memory first, will auto-fallback to CPU if OOM
 seed: 103
 video_negative_prompt: "jitter, bad hands, blur, distortion"  # Artifacts to avoid in video
 audio_negative_prompt: "robotic, muffled, echo, distorted"    # Artifacts to avoid in audio

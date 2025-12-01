@@ -115,22 +115,66 @@ class VideoGenerationService:
         self._output_dir.mkdir(parents=True, exist_ok=True)
 
         target_dtype = torch.bfloat16
-        print("Loading OviFusionEngine for API service...")
+        print("[DEBUG] VideoGenerationService.__init__: Loading OviFusionEngine for API service...")
         # Handle CPU mode (device_index = -1)
         # Normalize device to proper format (string for CPU, or device index for GPU)
         if self._device_index < 0:
+            print("[DEBUG] VideoGenerationService.__init__: CPU mode detected")
             print("WARNING: Running in CPU mode. This will be very slow.")
-            # Enable CPU offload mode for better memory management in CPU mode
-            # Create a mutable copy of config
+            # Force CPU mode
             config_dict = OmegaConf.to_container(self._base_config, resolve=True)
             config_dict['cpu_offload'] = True
             config = OmegaConf.create(config_dict)
             engine_device = "cpu"
         else:
+            print(f"[DEBUG] VideoGenerationService.__init__: GPU mode, device index: {self._device_index}")
+            # Force GPU usage - override cpu_offload config
+            config_dict = OmegaConf.to_container(self._base_config, resolve=True)
+            config_dict['cpu_offload'] = False  # Force GPU usage
+            config = OmegaConf.create(config_dict)
             engine_device = self._device_index
         
-        self._engine = OviFusionEngine(config=config, device=engine_device, target_dtype=target_dtype)
-        print("OviFusionEngine loaded successfully.")
+        print(f"[DEBUG] VideoGenerationService.__init__: Creating OviFusionEngine with device={engine_device}...")
+        try:
+            import gc
+            
+            # Clear any existing GPU cache
+            if torch.cuda.is_available() and engine_device != "cpu":
+                torch.cuda.empty_cache()
+                gc.collect()
+                print(f"[DEBUG] VideoGenerationService.__init__: GPU cache cleared. Free memory: {torch.cuda.get_device_properties(engine_device).total_memory / 1e9:.2f} GB")
+            
+            self._engine = OviFusionEngine(config=config, device=engine_device, target_dtype=target_dtype)
+            print("[DEBUG] VideoGenerationService.__init__: ✓ OviFusionEngine loaded successfully.")
+            
+            # Final memory check
+            if torch.cuda.is_available() and engine_device != "cpu":
+                allocated = torch.cuda.memory_allocated(engine_device) / 1e9
+                reserved = torch.cuda.memory_reserved(engine_device) / 1e9
+                print(f"[DEBUG] VideoGenerationService.__init__: Final GPU memory - Allocated: {allocated:.2f} GB, Reserved: {reserved:.2f} GB")
+            
+        except RuntimeError as e:
+            error_msg = str(e).lower()
+            if "out of memory" in error_msg or "cuda" in error_msg:
+                print(f"[ERROR] VideoGenerationService.__init__: GPU OUT OF MEMORY!")
+                print(f"[ERROR] The model is too large for your GPU memory.")
+                print(f"[ERROR] Solutions:")
+                print(f"[ERROR]   1. Enable cpu_offload: True in your config file")
+                print(f"[ERROR]   2. Use a smaller model (e.g., 720x720_5s)")
+                print(f"[ERROR]   3. Enable fp8: True and qint8: True for quantization")
+                print(f"[ERROR]   4. Close other applications using GPU memory")
+            print(f"[ERROR] Exception type: {type(e).__name__}")
+            print(f"[ERROR] Exception message: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            print(f"[ERROR] VideoGenerationService.__init__: Failed to create OviFusionEngine!")
+            print(f"[ERROR] Exception type: {type(e).__name__}")
+            print(f"[ERROR] Exception message: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise
 
     @staticmethod
     def _normalize_audio(audio: np.ndarray) -> np.ndarray:
@@ -1352,15 +1396,43 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="OVI FastAPI server")
     parser.add_argument("--config", type=str, default="ovi/configs/inference/inference_fusion.yaml", help="Path to inference configuration YAML.")
     parser.add_argument("--host", type=str, default="0.0.0.0", help="Host for FastAPI server.")
-    parser.add_argument("--port", type=int, default=8000, help="Port for FastAPI server.")
+    parser.add_argument("--port", type=int, default=8001, help="Port for FastAPI server.")
     parser.add_argument("--device-index", type=int, default=0, help="GPU device index to use.")
     return parser.parse_args()
 
 
 def create_app(config_path: str, device_index: int) -> FastAPI:
-    config = OmegaConf.load(config_path)
-    service = VideoGenerationService(config=config, device_index=device_index)
-    app = FastAPI(title="OVI Video Generation API")
+    import traceback
+    
+    try:
+        print("[DEBUG] create_app: Loading config...")
+        config = OmegaConf.load(config_path)
+        print("[DEBUG] create_app: ✓ Config loaded")
+        
+        print("[DEBUG] create_app: Creating VideoGenerationService...")
+        print("[DEBUG] create_app: This will load all models (may take several minutes)...")
+        try:
+            service = VideoGenerationService(config=config, device_index=device_index)
+            print("[DEBUG] create_app: ✓ VideoGenerationService created successfully")
+        except Exception as e:
+            print(f"[ERROR] create_app: Failed to create VideoGenerationService!")
+            print(f"[ERROR] Exception type: {type(e).__name__}")
+            print(f"[ERROR] Exception message: {str(e)}")
+            print(f"\n[ERROR] Full traceback:")
+            traceback.print_exc()
+            raise
+        
+        print("[DEBUG] create_app: Creating FastAPI app...")
+        app = FastAPI(title="OVI Video Generation API")
+        print("[DEBUG] create_app: ✓ FastAPI app created")
+        
+    except Exception as e:
+        print(f"[ERROR] create_app: Failed during app creation!")
+        print(f"[ERROR] Exception type: {type(e).__name__}")
+        print(f"[ERROR] Exception message: {str(e)}")
+        print(f"\n[ERROR] Full traceback:")
+        traceback.print_exc()
+        raise
 
     @app.post("/generate_video")
     async def generate_video_endpoint(
@@ -1574,16 +1646,88 @@ def create_app(config_path: str, device_index: int) -> FastAPI:
 
 
 def main() -> None:
-    args = _parse_args()
-    print(f"Starting OVI API server on {args.host}:{args.port}")
-    print(f"Using config: {args.config}")
-    print(f"Device index: {args.device_index}")
-    app = create_app(config_path=args.config, device_index=args.device_index)
-    import uvicorn
-
-    uvicorn.run(app, host=args.host, port=args.port)
+    import sys
+    import traceback
+    
+    try:
+        print("=" * 60)
+        print("OVI API Server - Starting...")
+        print("=" * 60)
+        
+        print("\n[DEBUG] Step 1: Parsing arguments...")
+        args = _parse_args()
+        print(f"[DEBUG] ✓ Arguments parsed successfully")
+        print(f"  - Config: {args.config}")
+        print(f"  - Host: {args.host}")
+        print(f"  - Port: {args.port}")
+        print(f"  - Device index: {args.device_index}")
+        
+        print(f"\n[DEBUG] Step 2: Starting OVI API server on {args.host}:{args.port}")
+        print(f"[DEBUG] Using config: {args.config}")
+        print(f"[DEBUG] Device index: {args.device_index}")
+        
+        print("\n[DEBUG] Step 3: Creating FastAPI app and loading models...")
+        print("[DEBUG] This may take a while as models are being loaded...")
+        try:
+            app = create_app(config_path=args.config, device_index=args.device_index)
+            print("[DEBUG] ✓ App created successfully")
+        except Exception as e:
+            print(f"\n[ERROR] Failed to create app!")
+            print(f"[ERROR] Exception type: {type(e).__name__}")
+            print(f"[ERROR] Exception message: {str(e)}")
+            print(f"\n[ERROR] Full traceback:")
+            traceback.print_exc()
+            sys.exit(1)
+        
+        print("\n[DEBUG] Step 4: Importing uvicorn...")
+        try:
+            import uvicorn
+            print("[DEBUG] ✓ Uvicorn imported successfully")
+        except Exception as e:
+            print(f"\n[ERROR] Failed to import uvicorn!")
+            print(f"[ERROR] Exception type: {type(e).__name__}")
+            print(f"[ERROR] Exception message: {str(e)}")
+            traceback.print_exc()
+            sys.exit(1)
+        
+        print("\n[DEBUG] Step 5: Starting uvicorn server...")
+        print(f"[DEBUG] Server will be available at http://{args.host}:{args.port}")
+        print("=" * 60)
+        print("Server is running. Press Ctrl+C to stop.")
+        print("=" * 60)
+        
+        try:
+            uvicorn.run(app, host=args.host, port=args.port)
+        except KeyboardInterrupt:
+            print("\n[DEBUG] Server stopped by user (Ctrl+C)")
+        except Exception as e:
+            print(f"\n[ERROR] Server crashed!")
+            print(f"[ERROR] Exception type: {type(e).__name__}")
+            print(f"[ERROR] Exception message: {str(e)}")
+            print(f"\n[ERROR] Full traceback:")
+            traceback.print_exc()
+            sys.exit(1)
+            
+    except Exception as e:
+        print(f"\n[ERROR] Fatal error in main()!")
+        print(f"[ERROR] Exception type: {type(e).__name__}")
+        print(f"[ERROR] Exception message: {str(e)}")
+        print(f"\n[ERROR] Full traceback:")
+        traceback.print_exc()
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit:
+        print("\n[DEBUG] Program exited")
+        raise
+    except Exception as e:
+        print(f"\n[ERROR] Unhandled exception in __main__!")
+        print(f"[ERROR] Exception type: {type(e).__name__}")
+        print(f"[ERROR] Exception message: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
 

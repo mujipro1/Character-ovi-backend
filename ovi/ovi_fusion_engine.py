@@ -50,22 +50,40 @@ NAME_TO_MODEL_SPECS_MAP = {
 
 class OviFusionEngine:
     def __init__(self, config=DEFAULT_CONFIG, device=0, target_dtype=torch.bfloat16):
+        import gc
+        
         # Load fusion model
         # Normalize device: if it's "cpu" string, keep it; if it's a device index, use it
         if device == "cpu" or (isinstance(device, str) and device.lower() == "cpu"):
             self.device = "cpu"
             device_for_rank = "cpu"
+            force_cpu_offload = True
         else:
             self.device = device
             device_for_rank = device
+            force_cpu_offload = False
         
         self.target_dtype = target_dtype
         meta_init = True
-        self.cpu_offload = config.get("cpu_offload", False) or config.get("mode") == "t2i2v" or device == "cpu"
-        if self.cpu_offload:
-            logging.info("CPU offloading is enabled. Initializing all models aside from VAEs on CPU")
+        
+        # Force GPU usage if available - ignore cpu_offload config when GPU is available
+        # Only use CPU if explicitly forced (device="cpu") or GPU not available
+        if force_cpu_offload or not torch.cuda.is_available():
+            # Must use CPU
+            self.cpu_offload = True
+            try_gpu_first = False
+            logging.info("CPU mode: GPU not available or explicitly disabled")
+        else:
+            # GPU is available - use GPU first, ignore cpu_offload config
+            self.cpu_offload = False
+            try_gpu_first = True
+            logging.info("GPU mode: Attempting to load all models on GPU. Will fall back to CPU only if GPU runs out of memory.")
 
+        import gc
+        
+        print("[DEBUG] OviFusionEngine: Initializing fusion score model...")
         model, video_config, audio_config = init_fusion_score_model_ovi(rank=device_for_rank, meta_init=meta_init)
+        gc.collect()  # Free memory after model initialization
 
         fp8 = config.get("fp8", False)
         int8 = config.get("qint8", False)
@@ -74,29 +92,102 @@ class OviFusionEngine:
 
         if not meta_init:
             if not fp8:
+                print("[DEBUG] OviFusionEngine: Converting model to target dtype...")
                 model = model.to(dtype=target_dtype)
-            target_device = "cpu" if (self.cpu_offload or device == "cpu") else device
-            model = (
-                model.to(device=target_device)
-                .eval()
-            )
+                gc.collect()
+            
+            # Always try GPU first if available
+            if try_gpu_first:
+                target_device = device
+                print(f"[DEBUG] OviFusionEngine: Loading model on GPU (device {target_device})...")
+                try:
+                    model = model.to(device=target_device).eval()
+                    # Check if we actually have enough memory
+                    if torch.cuda.is_available():
+                        allocated = torch.cuda.memory_allocated(target_device) / 1e9
+                        reserved = torch.cuda.memory_reserved(target_device) / 1e9
+                        print(f"[DEBUG] OviFusionEngine: ✓ Model loaded on GPU. VRAM: {allocated:.2f} GB allocated, {reserved:.2f} GB reserved")
+                except RuntimeError as e:
+                    if "out of memory" in str(e).lower() or "cuda" in str(e).lower():
+                        print(f"[WARNING] OviFusionEngine: GPU out of memory ({e}). Falling back to CPU...")
+                        self.cpu_offload = True
+                        target_device = "cpu"
+                        model = model.to(device=target_device).eval()
+                        gc.collect()
+                    else:
+                        raise
+            else:
+                # CPU mode
+                target_device = "cpu"
+                model = model.to(device=target_device).eval()
+                gc.collect()
 
-        # Load VAEs - pass device string for CPU mode, device index for GPU
-        vae_model_video = init_wan_vae_2_2(config.ckpt_dir, rank=device_for_rank)
-        vae_model_video.model.requires_grad_(False).eval()
-        vae_model_video.model = vae_model_video.model.bfloat16()
-        self.vae_model_video = vae_model_video
+        print("[DEBUG] OviFusionEngine: Loading video VAE...")
+        # Load VAEs on GPU if available, fall back to CPU only on OOM
+        vae_device = device_for_rank if try_gpu_first else "cpu"
+        try:
+            print(f"[DEBUG] OviFusionEngine: Loading video VAE on {'GPU' if try_gpu_first else 'CPU'}...")
+            vae_model_video = init_wan_vae_2_2(config.ckpt_dir, rank=vae_device)
+            vae_model_video.model.requires_grad_(False).eval()
+            vae_model_video.model = vae_model_video.model.bfloat16()
+            self.vae_model_video = vae_model_video
+            gc.collect()
+            if try_gpu_first:
+                print(f"[DEBUG] OviFusionEngine: ✓ Video VAE loaded on GPU")
+        except RuntimeError as e:
+            if "out of memory" in str(e).lower():
+                print(f"[WARNING] OviFusionEngine: GPU OOM loading video VAE. Moving to CPU...")
+                vae_model_video = init_wan_vae_2_2(config.ckpt_dir, rank="cpu")
+                vae_model_video.model.requires_grad_(False).eval()
+                vae_model_video.model = vae_model_video.model.bfloat16()
+                self.vae_model_video = vae_model_video
+                gc.collect()
+            else:
+                raise
+        
+        print("[DEBUG] OviFusionEngine: Loading audio VAE...")
+        try:
+            print(f"[DEBUG] OviFusionEngine: Loading audio VAE on {'GPU' if try_gpu_first else 'CPU'}...")
+            vae_model_audio = init_mmaudio_vae(config.ckpt_dir, rank=vae_device)
+            vae_model_audio.requires_grad_(False).eval()
+            self.vae_model_audio = vae_model_audio.bfloat16()
+            gc.collect()
+            if try_gpu_first:
+                print(f"[DEBUG] OviFusionEngine: ✓ Audio VAE loaded on GPU")
+        except RuntimeError as e:
+            if "out of memory" in str(e).lower():
+                print(f"[WARNING] OviFusionEngine: GPU OOM loading audio VAE. Moving to CPU...")
+                vae_model_audio = init_mmaudio_vae(config.ckpt_dir, rank="cpu")
+                vae_model_audio.requires_grad_(False).eval()
+                self.vae_model_audio = vae_model_audio.bfloat16()
+                gc.collect()
+            else:
+                raise
 
-        vae_model_audio = init_mmaudio_vae(config.ckpt_dir, rank=device_for_rank)
-        vae_model_audio.requires_grad_(False).eval()
-        self.vae_model_audio = vae_model_audio.bfloat16()
-
-        # Load T5 text model
-        self.text_model = init_text_model(config.ckpt_dir, rank=device_for_rank, cpu_offload=self.cpu_offload)
+        # Load T5 text model - try GPU first
+        print("[DEBUG] OviFusionEngine: Loading T5 text model...")
+        t5_device = device_for_rank if try_gpu_first else "cpu"
+        try:
+            print(f"[DEBUG] OviFusionEngine: Loading T5 on {'GPU' if try_gpu_first else 'CPU'}...")
+            self.text_model = init_text_model(config.ckpt_dir, rank=t5_device, cpu_offload=False)
+            gc.collect()
+            if try_gpu_first:
+                print(f"[DEBUG] OviFusionEngine: ✓ T5 model loaded on GPU")
+        except RuntimeError as e:
+            if "out of memory" in str(e).lower():
+                print(f"[WARNING] OviFusionEngine: GPU OOM loading T5. Moving to CPU...")
+                self.cpu_offload = True
+                self.text_model = init_text_model(config.ckpt_dir, rank="cpu", cpu_offload=True)
+                gc.collect()
+            else:
+                raise
+        
         if config.get("shard_text_model", False):
             raise NotImplementedError("Sharding text model is not implemented yet.")
-        if self.cpu_offload:
+        # Only offload to CPU if we're in CPU mode
+        if self.cpu_offload and t5_device != "cpu":
             self.offload_to_cpu(self.text_model.model)
+            gc.collect()
 
         # Find fusion ckpt in the same dir used by other components
         model_name = config.get("model_name", "960x960_5s")
@@ -117,13 +208,48 @@ class OviFusionEngine:
         if not os.path.exists(checkpoint_path):
             raise RuntimeError(f"REQUIRED fusion checkpoint not found in {config.ckpt_dir}, please download...")
 
-        load_fusion_checkpoint(model, checkpoint_path=checkpoint_path, from_meta=meta_init)
+        print("[DEBUG] OviFusionEngine: Loading fusion checkpoint...")
+        try:
+            load_fusion_checkpoint(model, checkpoint_path=checkpoint_path, from_meta=meta_init)
+            gc.collect()
+        except RuntimeError as e:
+            if "out of memory" in str(e).lower():
+                print(f"[ERROR] OviFusionEngine: Out of memory loading checkpoint!")
+                print(f"[ERROR] Try enabling cpu_offload: True in your config")
+                raise RuntimeError(f"Out of memory loading model checkpoint. Enable cpu_offload: True in config or reduce model size.") from e
+            raise
 
         if meta_init:
             if not fp8:
+                print("[DEBUG] OviFusionEngine: Converting checkpoint model to target dtype...")
                 model = model.to(dtype=target_dtype)
-            model = model.to(device=device if not self.cpu_offload else "cpu").eval()
-            model.set_rope_params()
+                gc.collect()
+            
+            # Always try GPU first if available
+            if try_gpu_first:
+                target_device = device
+                print(f"[DEBUG] OviFusionEngine: Moving checkpoint model to GPU (device {target_device})...")
+                try:
+                    model = model.to(device=target_device).eval()
+                    model.set_rope_params()
+                    gc.collect()
+                    print(f"[DEBUG] OviFusionEngine: ✓ Checkpoint model loaded on GPU")
+                except RuntimeError as e:
+                    if "out of memory" in str(e).lower():
+                        print(f"[WARNING] OviFusionEngine: GPU OOM. Moving model to CPU...")
+                        self.cpu_offload = True
+                        target_device = "cpu"
+                        model = model.to(device=target_device).eval()
+                        model.set_rope_params()
+                        gc.collect()
+                    else:
+                        raise
+            else:
+                target_device = "cpu"
+                print(f"[DEBUG] OviFusionEngine: Moving checkpoint model to CPU...")
+                model = model.to(device=target_device).eval()
+                model.set_rope_params()
+                gc.collect()
         self.model = model
         if int8:
             quantize(self.model, qint8)
@@ -146,7 +272,19 @@ class OviFusionEngine:
         self.target_area = model_specs["video_area"]
 
 
-        logging.info(f"OVI Fusion Engine initialized, cpu_offload={self.cpu_offload}. GPU VRAM allocated: {torch.cuda.memory_allocated(device)/1e9:.2f} GB, reserved: {torch.cuda.memory_reserved(device)/1e9:.2f} GB")
+        # Final memory report
+        if torch.cuda.is_available() and self.device != "cpu" and isinstance(self.device, int):
+            try:
+                allocated = torch.cuda.memory_allocated(self.device) / 1e9
+                reserved = torch.cuda.memory_reserved(self.device) / 1e9
+                logging.info(f"OVI Fusion Engine initialized, cpu_offload={self.cpu_offload}. GPU VRAM allocated: {allocated:.2f} GB, reserved: {reserved:.2f} GB")
+                print(f"[DEBUG] OviFusionEngine: ✓ Initialization complete. GPU VRAM: {allocated:.2f} GB allocated, {reserved:.2f} GB reserved")
+            except Exception as e:
+                logging.info(f"OVI Fusion Engine initialized, cpu_offload={self.cpu_offload}")
+                print(f"[DEBUG] OviFusionEngine: ✓ Initialization complete (could not read GPU memory: {e})")
+        else:
+            logging.info(f"OVI Fusion Engine initialized, cpu_offload={self.cpu_offload} (CPU mode)")
+            print(f"[DEBUG] OviFusionEngine: ✓ Initialization complete (CPU mode)")
 
     @torch.inference_mode()
     def generate(self,
