@@ -7,7 +7,7 @@
 ### Steps
 1. Clone the repository  
    ```bash
-   git clone https://github.com/character-ai/ovi.git
+   git clone https://github.com/mujipro1/Character-ovi-backend.git
    cd ovi
    ```
 2. (Recommended) Create and activate a Python 3.10 environment  
