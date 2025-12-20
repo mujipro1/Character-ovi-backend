@@ -220,5 +220,3 @@ Please ensure compliance with model licenses and dataset usage terms.
 ---
 
 🎬 *Turning prompts into motion*
-
-```
