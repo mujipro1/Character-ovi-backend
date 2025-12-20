@@ -91,7 +91,7 @@ This backend can be integrated with **web apps, creative tools, or character-bas
    ```bash
    git clone https://github.com/mujipro1/Character-ovi-backend.git
    cd ovi
-````
+   ```
 
 2. (Recommended) Create and activate a Python environment
 
@@ -221,5 +221,4 @@ Please ensure compliance with model licenses and dataset usage terms.
 
 🎬 *Turning prompts into motion*
 
-Just say the word.
 ```
